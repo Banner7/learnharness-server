@@ -53,26 +53,40 @@ it("a candidate a concurrent chat extraction re-links survives the prune", () =>
 
 const removeSources = (sourceIds: string[]) => DELETE(new Request("http://localhost/api/graph/sources", { method: "DELETE", body: JSON.stringify({ sourceIds, folderIds: [], deleteSessions: false }) }));
 const removeMissing = (ids: string[]) => deleteMissing(new Request("http://localhost/api/library/missing", { method: "DELETE", body: JSON.stringify({ ids }) }));
+const notePath = path.join(vaultDir, "math", "Note.md");
+const putNote = () => { fs.mkdirSync(path.dirname(notePath), { recursive: true }); fs.writeFileSync(notePath, "# Note\n"); };
 const vault = (missingSince?: string) => ({ path: "math/Note.md", contentHash: "h", changedAt: "2026-11-01", extractedHash: "h", ...(missingSince ? { missingSince } : {}) });
 
 it("a vault note still in the vault cannot be deleted from LH; a missing one can, after review", async () => {
+	putNote();
 	stores.graphStore.upsertSource({ id: "src_v", filePath: "math/Note.md", importedAt: "2026-11-01", vault: vault() });
 	stores.graphStore.appendNode(node("idea", ["src_v"]));
 	assert.equal((await removeSources(["src_v"])).status, 409);
 	assert.equal((await removeMissing(["src_v"])).status, 409);
 	assert.ok(ids().has("idea"), "the refusals write nothing");
 
-	stores.graphStore.upsertSource({ id: "src_v", filePath: "math/Note.md", importedAt: "2026-11-01", vault: vault("2026-11-02") });
-	assert.equal((await removeMissing(["src_v"])).status, 200);
+	fs.rmSync(notePath);
+	assert.equal((await removeMissing(["src_v"])).status, 200, "the fresh scan confirms it is gone");
 	assert.ok(!ids().has("idea"));
 });
 
-it("a skipped note is not 'missing': the review route refuses it", async () => {
+it("a skipped note still on disk is not 'missing': the review route refuses it", async () => {
+	putNote();
 	writeSettings({ version: 1, library: { exclude: ["math/"] } });
 	stores.graphStore.upsertSource({ id: "src_v", filePath: "math/Note.md", importedAt: "2026-11-01", vault: vault("2026-11-02") });
 	stores.graphStore.appendNode(node("idea2", ["src_v"]));
 	assert.equal((await removeMissing(["src_v"])).status, 409);
 	assert.ok(ids().has("idea2"));
+	fs.rmSync(notePath);
+});
+
+it("a note restored on disk since the last scan is refused, not deleted", async () => {
+	stores.graphStore.upsertSource({ id: "src_r", filePath: "math/Note.md", importedAt: "2026-11-01", vault: vault("2026-11-02") });
+	stores.graphStore.appendNode(node("idea3", ["src_r"]));
+	putNote();
+	assert.equal((await removeMissing(["src_r"])).status, 409);
+	assert.ok(ids().has("idea3"));
+	fs.rmSync(notePath);
 });
 
 it("deleting a missing note prunes ideas left detached by a failed re-extraction", async () => {

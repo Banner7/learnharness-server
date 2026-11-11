@@ -81,9 +81,7 @@ export function envKeysIgnored(): boolean {
  */
 export function initAuthEnv(): void {
 	const record = boot();
-	const fileVars = authStore.authVars();
-	const managed = new Set<string>([
-		...Object.keys(fileVars),
+	const known = new Set<string>([
 		...AUTH_KEYS.map((k) => k.id),
 		// Provider env vars are managed names too (provider-keys interlude):
 		// an env-exported OPENAI_API_KEY with a file copy gets honest shadow
@@ -91,6 +89,13 @@ export function initAuthEnv(): void {
 		...AUTH_PROVIDER_KEYS.map((p) => p.envVar),
 		...customProviderEnvVars(),
 	]);
+	// Only key-shaped names are mirrored: the file must never set gate config
+	// (LH_*), runtime switches (NODE_OPTIONS) or PATH/HOME. Other entries stay
+	// in the file and show as status rows, but never reach process.env.
+	const fileVars = Object.fromEntries(Object.entries(authStore.authVars()).filter(([name]) =>
+		!name.startsWith("LH_") && !name.startsWith("NODE_") &&
+		(known.has(name) || /_(?:API_KEY|TOKEN|SECRET)$/.test(name))));
+	const managed = new Set<string>([...Object.keys(fileVars), ...known]);
 	if (envKeysIgnored()) {
 		// THE FRESH-USER SWITCH: delete every managed env var (re-run on
 		// every call — a reintroduced var never resurrects). realEnv stays

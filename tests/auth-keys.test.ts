@@ -49,13 +49,12 @@ describe("maskKey (plaintext never leaves)", () => {
 		assert.equal(maskKey("sk-or-v1-abcdefgh1234"), "…1234");
 	});
 
-	it("never reveals a degenerate short value in full", () => {
-		assert.equal(maskKey("ab"), "…ab");
-		assert.equal(maskKey("abcd"), "…abcd");
-		assert.equal(maskKey("abcde"), "…bcde");
+	it("reveals nothing of a value shorter than 12 characters", () => {
+		for (const short of ["ab", "abcd", "abcde", "abcdefghijk"]) assert.equal(maskKey(short), "••••");
 	});
 
 	it("trims before masking", () => {
 		assert.equal(maskKey("  sk-or-v1-xyzw9  "), "…yzw9");
+		assert.equal(maskKey("  abcd  "), "••••");
 	});
 });

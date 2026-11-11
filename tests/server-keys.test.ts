@@ -56,7 +56,7 @@ describe("boot fill-gap + precedence", () => {
 	it("env-owned var wins and the file copy is untouched", () => {
 		assert.equal(process.env.OPENROUTER_API_KEY, ENV_OWNED);
 		assert.equal(authStore.authVars().OPENROUTER_API_KEY, "sk-or-v1-filefilefile", "file copy untouched");
-		assert.equal(externalCliEnv().OPENROUTER_API_KEY, ENV_OWNED, "external CLIs retain launch-env ownership");
+		assert.equal(externalCliEnv().OPENROUTER_API_KEY, undefined, "external CLIs get an allowlisted environment, not provider keys");
 	});
 
 	it("unknown file vars are reflected into the environment", () => {

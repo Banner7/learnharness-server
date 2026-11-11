@@ -1,8 +1,10 @@
-# Example deployment template. Copy this to a private compose.yml (or
-# deploy/compose.yml) and fill in the secrets in secrets/runtime.env before
-# starting. Publish the port loopback-only and put an authenticated reverse
-# proxy / Tailscale Serve in front of it; the app's access gate stays
-# fail-closed regardless.
+# Example deployment template. Copy it to compose.yml in the repository root
+# (the build context): `build: .` and the ./data, ./secrets and ./claude
+# paths resolve relative to the compose file, so a copy left in deploy/
+# would build and mount the wrong directories. Fill in secrets/runtime.env
+# before starting. Publish the port loopback-only and put an authenticated
+# reverse proxy / Tailscale Serve in front of it; the app's access gate
+# stays fail-closed regardless.
 services:
   learnharness:
     build: .

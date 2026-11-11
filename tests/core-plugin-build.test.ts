@@ -9,7 +9,7 @@ function fixture(run: (root: string, calls: string[]) => void) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), "lh-core-build-"));
 	try {
 		fs.writeFileSync(path.join(root, "core-plugins.json"), JSON.stringify(["one", "two"]));
-		fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ version: "0.4.1" }));
+		fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ version: "0.0.1", pluginHostVersion: "0.4.1" }));
 		for (const id of ["one", "two", "ui-showcase"]) {
 			const code = path.join(root, "plugins", id, "dist"); fs.mkdirSync(path.join(code, "assets"), { recursive: true });
 			fs.writeFileSync(path.join(code, "manifest.json"), JSON.stringify({ apiVersion: 1, id, name: id, version: "1.0.0", minAppVersion: "0.4.1", main: "main.js" }));

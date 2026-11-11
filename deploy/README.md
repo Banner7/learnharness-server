@@ -26,6 +26,12 @@ Chrome for Testing publishes no linux-arm64 headless shell.
 mkdir -p data secrets claude
 # uid 1000 owns the Claude CLI state dir (the `node` user in the image).
 chown 1000:1000 claude
+# Create auth.json before the first start (or delete its volume line):
+# if the host file is missing, Docker creates a root-owned DIRECTORY there
+# and the app silently reads no keys from it.
+echo '{}' > secrets/auth.json
+# Copy to the repository root: build: . and ./data resolve relative to the
+# compose file, so a copy inside deploy/ points at the wrong directories.
 cp deploy/compose.example.yml compose.yml
 # Edit compose.yml + secrets/runtime.env, then:
 docker compose up -d
@@ -55,6 +61,17 @@ that header, so it trusts it from anything that can reach the container port.
 Use it only when the listener is reachable solely through Tailscale Serve, with
 the container on a dedicated Docker network that no other container shares.
 Otherwise leave it unset and use the Basic token (`LH_WEB_ACCESS_TOKEN`) only.
+
+### Security note: Coding Questions runs model-written code
+
+Enabling the Coding Questions plugin runs programs the model wrote as the
+server's own user (`node`), inside the container, with network access. Its
+environment is scrubbed, but the program can still read the server's secrets
+another way: the server process's environment through `/proc` (the access
+token, provider keys, `CLAUDE_CODE_OAUTH_TOKEN`), `/secrets/auth.json` and
+`/claude`. It can also change `/data`. A prompt injection in a web page or
+note can make the model write such a program. Keep the plugin disabled
+(the default) unless you accept that risk.
 
 ## Image contents
 

@@ -151,10 +151,11 @@ export function isProviderEnvVar(envVar: string): boolean {
 
 /** A masked key never leaves the server as plaintext (owner decision:
  *  last 4 chars + length — enough to identify which key is stored after
- *  rotating between several, and to spot a mis-pasted family). */
+ *  rotating between several, and to spot a mis-pasted family). Values under
+ *  12 characters show no characters at all: 4 of them is too much of it. */
 export function maskKey(value: string): string {
 	const v = value.trim();
-	if (v.length <= 4) return `…${v}`; // degenerate paste — still never the whole value
+	if (v.length < 12) return "••••";
 	return `…${v.slice(-4)}`;
 }
 

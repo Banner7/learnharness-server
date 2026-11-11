@@ -89,10 +89,12 @@ export function missingVaultNotes(): MissingVaultNote[] {
 }
 
 /** Delete missing notes the learner reviewed: their records, placements and
- * the ideas only they supported (the regular source deletion). Every id
- * must still be missing — a note that came back, or one only skipped, is
+ * the ideas only they supported (the regular source deletion). A fresh scan
+ * runs first, so a note restored since the last poll is not deleted. Every
+ * id must still be missing — a note that came back, or one only skipped, is
  * refused rather than silently removed. */
-export function deleteMissingVaultNotes(ids: readonly string[]): MissingVaultNote[] {
+export async function deleteMissingVaultNotes(ids: readonly string[]): Promise<MissingVaultNote[]> {
+	if (await syncVault() === null) throw new SourceDeletionError("Could not scan the vault. Check that it is mounted and readable, then try again.", 503, "vault_scan_failed");
 	const missing = new Set(missingVaultNotes().map((note) => note.id));
 	const stale = ids.filter((id) => !missing.has(id));
 	if (stale.length) throw new SourceDeletionError("Some notes are no longer missing from the vault. Refresh and review again.", 409, "vault_note_not_missing");

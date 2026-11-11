@@ -21,7 +21,7 @@ export async function DELETE(request: Request) {
 		return Response.json({ error: "ids must be a non-empty list of source IDs." }, { status: 400 });
 	}
 	try {
-		return Response.json({ notes: deleteMissingVaultNotes([...new Set(ids as string[])]) });
+		return Response.json({ notes: await deleteMissingVaultNotes([...new Set(ids as string[])]) });
 	} catch (error) {
 		if (error instanceof SourceDeletionError) return Response.json({ error: error.message, code: error.code }, { status: error.status });
 		console.error("[vault] missing-note deletion failed:", error);
