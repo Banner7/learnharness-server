@@ -6,22 +6,17 @@ import {
 	type CacheRetention,
 	type Model,
 	type Models,
-	type MutableModels,
 	type StreamFunction,
 } from "@earendil-works/pi-ai";
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
-import { lazyApi, lazyStream } from "@earendil-works/pi-ai/api/lazy";
+import { lazyApi } from "@earendil-works/pi-ai/api/lazy";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { type ModelRole } from "../../config.ts";
 import { DEFAULT_THINKING_ORDER } from "../core/settings.ts";
 import packageMetadata from "../../package.json" with { type: "json" };
-import { chatGPTModel } from "./chatgpt-bridge.ts";
-import { chatGPTStream } from "./chatgpt-stream.ts";
-import type { ChatGPTDispatchLifecycle } from "./chatgpt-request-cycle.ts";
 import { createClaudeCodeProvider } from "./claude-code/provider.ts";
 import { streamClaudeCode } from "./claude-code/stream.ts";
-import { nativeSubscriptionId, nativeSubscriptionModel } from "./subscription-bridge.ts";
-import { nativeSubscriptionStream } from "./subscription-stream.ts";
+import { customProviders, customProviderIds, serializedCustomStream } from "./custom-providers.ts";
 
 /** App identity is immutable and shared by Models and every native Agent.
  * Agent's default Pi attribution otherwise overrides the Models identity. */
@@ -46,31 +41,13 @@ export const APP_IDENTITY = Object.freeze({
 export interface PiEngine {
 	model: Model<Api>;
 	streamFn: StreamFunction;
-	/** The initially resolved (config-or-settings, CLAMPED) thinking level.
-	 *  Custom streams re-resolve the original preference per operation. */
+	/** The initially resolved (config-or-settings, CLAMPED) thinking level. */
 	level?: ThinkingLevel;
 }
 
 export type { ThinkingLevel };
 
 let collection: ReturnType<typeof createModels> | undefined;
-interface ProviderSource {
-	sync(models: MutableModels): void;
-	isCustom(id: string): boolean;
-}
-let providerSource: ProviderSource | undefined;
-
-/** Configuration IO is injected by the server; the agent never imports stores. */
-export function configureProviderSource(source: ProviderSource): void {
-	// Server module re-evaluation can replace the source while this collection
-	// survives. Retire only the previous source's routes, not built-ins.
-	if (collection && providerSource) {
-		for (const provider of collection.getProviders()) {
-			if (providerSource.isCustom(provider.id)) collection.deleteProvider(provider.id);
-		}
-	}
-	providerSource = source;
-}
 
 /** The process-wide pi-ai Models collection — EVERY builtin provider's
  *  catalog (model slots wave, 2026-09-20): engines and the picker resolve
@@ -79,21 +56,26 @@ export function configureProviderSource(source: ProviderSource): void {
  *  the environment (the keys seam reflects file-saved keys into env), and
  *  a provider with no key simply fails its stream with "not configured" —
  *  honest, late, and unreachable through the picker, which gates on
- *  keyPresent. */
+ *  keyPresent. LH_CUSTOM_PROVIDERS adds server-configured endpoints. */
 export function piModels() {
 	if (!collection) {
-		collection = createModels({ identity: APP_IDENTITY });
+		const models = createModels({ identity: APP_IDENTITY });
 		for (const provider of builtinProviders()) {
 			// Keep the native Bedrock implementation reachable by standalone tracing.
 			// Pi's default Node-only loader hides this import from bundlers. Only
 			// replace its lazy forwarding; preserve the native factory's auth/catalog.
-			collection.setProvider(provider.id === "amazon-bedrock"
+			models.setProvider(provider.id === "amazon-bedrock"
 				? { ...provider, ...lazyApi(() => import("@earendil-works/pi-ai/api/bedrock-converse-stream")) }
 				: provider);
 		}
-		collection.setProvider(createClaudeCodeProvider(streamClaudeCode));
+		models.setProvider(createClaudeCodeProvider(streamClaudeCode));
+		for (const provider of customProviders()) {
+			// A configured id must never replace a built-in provider's routes.
+			if (models.getProvider(provider.id)) throw new Error(`Custom provider id "${provider.id}" is reserved`);
+			models.setProvider(provider);
+		}
+		collection = models;
 	}
-	providerSource?.sync(collection);
 	return collection;
 }
 
@@ -129,58 +111,35 @@ function defaultThinkingLevel(model: Model<Api>): ThinkingLevel {
  *  key is resolved by pi-ai itself from the environment per request (the
  *  keys seam reflects file-saved keys into env), so the engine never
  *  hardcodes OpenRouter's. */
-export function piEngineForSpec(spec: ResolvedModelSpec, background: boolean | (() => boolean) = true, lifecycle?: ChatGPTDispatchLifecycle, cacheRetention?: () => CacheRetention | undefined): PiEngine {
+export function piEngineForSpec(spec: ResolvedModelSpec, cacheRetention?: () => CacheRetention | undefined): PiEngine {
 	const models: Models = piModels();
-	const nativeId = nativeSubscriptionId(spec.provider);
-	const registeredModel = spec.provider === "chatgpt" ? chatGPTModel(spec.id) : nativeId ? nativeSubscriptionModel(spec.provider, spec.id) : models.getModel(spec.provider, spec.id);
-	const custom = providerSource?.isCustom(spec.provider) ?? false;
-	// Custom endpoint owners authorize image attempts independently of sparse
-	// discovery metadata. Never promote the registered/catalog capabilities.
-	const permitImages = (value: Model<Api>): Model<Api> => ({ ...value, input: ["text", "image"] });
-	const model = custom && registeredModel ? permitImages(registeredModel) : registeredModel;
+	const model = models.getModel(spec.provider, spec.id);
 	if (!model) {
 		throw new Error(`${spec.provider} catalog has no model ${spec.id}`);
 	}
 	// UNSET level → the baked default order (first entry the model
 	// supports); SET level → pi's native nearest-clamp (model swaps keep
 	// the user's intent and adapt honestly).
-	const thinkingPreference = spec.thinkingLevel;
-	const level = thinkingPreference
-		? clampThinkingLevel(model, thinkingPreference)
+	const level = spec.thinkingLevel
+		? clampThinkingLevel(model, spec.thinkingLevel)
 		: defaultThinkingLevel(model);
-	// A lesson's agent loop can stay alive through many tool calls. Remember
-	// only that this is a custom route, never its configuration for that run.
+	// Configured endpoints are often small: serialize whole requests per provider.
+	const stream = models.streamSimple.bind(models);
+	const dispatch = customProviderIds().includes(spec.provider) ? serializedCustomStream(stream) : stream;
 	return {
 		model,
 		level,
 		// The agent loop forwards state.thinkingLevel as `reasoning` (undefined
-		// = off on pi-ai's scale). Built-ins keep the factory clamp; custom
-		// requests re-resolve thinking against their current metadata below.
+		// = off on pi-ai's scale).
 		streamFn: (requestModel, context, options) => {
 			// Read the slot preference for every operation, not just engine creation.
 			// Unset adds NOTHING: native defaults/env and explicit caller options survive.
 			const retention = cacheRetention?.();
-			const requestOptions = {
+			return dispatch(requestModel, context, {
 				...options,
 				...(retention !== undefined ? { cacheRetention: retention } : {}),
 				reasoning: level === "off" ? undefined : level,
-			};
-			if (custom) {
-				// Revalidate before EVERY upstream model operation, including later
-				// tool-loop steps. Resolve thinking from the ORIGINAL preference (or
-				// existing default order), not a previous metadata snapshot's clamp.
-				// Pi retains the setup of an operation already in flight.
-				const current = piModels();
-				const currentModel = current.getModel(spec.provider, spec.id);
-				if (!currentModel) return lazyStream(requestModel, async () => { throw new Error("The selected custom model is unavailable."); });
-				const currentLevel = thinkingPreference
-					? clampThinkingLevel(currentModel, thinkingPreference)
-					: defaultThinkingLevel(currentModel);
-				return current.streamSimple(permitImages(currentModel), context, { ...requestOptions, reasoning: currentLevel === "off" ? undefined : currentLevel });
-			}
-			const purpose = typeof background === "function" ? background : () => background;
-			const stream = spec.provider === "chatgpt" ? chatGPTStream(purpose, lifecycle) : nativeId ? nativeSubscriptionStream(models.getProvider(nativeId)!, purpose, lifecycle) : models.streamSimple.bind(models);
-			return stream(requestModel, context, requestOptions);
+			});
 		},
 	};
 }

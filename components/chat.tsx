@@ -84,7 +84,7 @@ import { createCiteAction, type CitationEditTarget } from "@/components/citation
 import { CitationActionsContext, type CitationActions } from "@/components/citation-chip";
 import { CitationCommentPopover } from "@/components/citation-comment-popover";
 import { revealCitationSource } from "@/components/citation-source";
-import { createSideQuestionActions, SideThreadBody, SideThreadPanel, SideThreadPopover } from "@/components/side-thread";
+import { createSideQuestionActions, SideThreadBody, SideThreadPanel, SideThreadPopover, useWideSideThread } from "@/components/side-thread";
 import { useSideThread, type SideThreadOpenArgs } from "@/components/use-side-thread";
 import { useRouter } from "next/navigation";
 import { PracticeDock } from "@/components/practice-dock";
@@ -132,7 +132,8 @@ import { currentUserThinkingOpen, setAllUserThinkingOpen } from "@/components/th
  * deliberately narrower (~46rem centered) per the reference. Same ELEMENT,
  * same place — width polish only.
  */
-const COLUMN = "mx-auto w-full max-w-none px-6";
+// Phone wave: a 16px gutter on the phone, upstream's 24px from sm up.
+const COLUMN = "mx-auto w-full max-w-none px-4 sm:px-6";
 const DOCK = "mx-auto w-full max-w-[46rem] px-4";
 // The DOCK container's fixed width (46rem) and the plan marginalia's
 // geometry (owner, plan-placement round): the bare diagram sits in the
@@ -988,6 +989,7 @@ export function Chat({
 	// One durable companion per explanation/check, in teaching AND practice.
 	// Main requests append new raw exchanges from every thread; closing only hides the UI.
 	const workingRef = useRef("");
+	const sideWide = useWideSideThread();
 	const sideThread = useSideThread(chatId, nativeMessages, () => {
 		// Plugin editors own opaque answer/submission values. Only host Thinking
 		// is safe helper context; read its live draft without introspecting the renderer.
@@ -1630,11 +1632,6 @@ export function Chat({
 				    LH wordmark band, so the header's border-b continues that
 				    band's bottom edge as one line across the app (owner, round 6). */}
 				<TopBar
-					// While renaming the bar is NOT a drag surface: app-region:drag
-					// would eat the mousedown, so click-to-escape (below) could
-					// never fire. Rename mode is interactive mode (owner ask) —
-					// TopBar's one escape hatch.
-					drag={!renaming}
 					onMouseDown={(e) => {
 						// Escape hitbox: any mousedown outside the input itself blurs
 						// it, running the existing onBlur commit path. The input is
@@ -1665,7 +1662,7 @@ export function Chat({
 								data-plugin-chrome-title
 								aria-label="Session title"
 								title="Rename this session"
-								className="lh-no-drag min-w-[8ch] max-w-[70%] shrink-0 bg-transparent font-title text-3xl tracking-tight caret-current outline-none [field-sizing:content]"
+								className="min-w-[8ch] max-w-[70%] shrink-0 bg-transparent font-title text-2xl tracking-tight caret-current outline-none [field-sizing:content] sm:text-3xl"
 							/>
 							{/* flex-1 spacer during rename too, so the chips stay at
 							    the right edge; clicks here commit via the header
@@ -1687,7 +1684,7 @@ export function Chat({
 								setRenaming(true);
 							}}
 							data-plugin-chrome-title
-							className="lh-no-drag -mx-1.5 min-w-4 shrink cursor-text truncate rounded-md px-1.5 text-left font-title text-3xl tracking-tight transition-colors hover:bg-accent"
+							className="-mx-1.5 min-w-4 shrink cursor-text truncate rounded-md px-1.5 text-left font-title text-2xl tracking-tight transition-colors hover:bg-accent sm:text-3xl"
 						>
 							{titleText}
 							</button>
@@ -1709,7 +1706,7 @@ export function Chat({
 								blurAfterPointerClick(e);
 								setPlanOpen(true);
 							}}
-							className="lh-no-drag flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/80 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+							className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/80 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:border-border hover:text-foreground"
 						>
 							<WaypointsIcon className="size-3.5 text-primary" aria-hidden />
 							Plan
@@ -2149,7 +2146,7 @@ export function Chat({
 					}}
 				/>
 				</Conversation>
-				{sideThread.state?.mode === "panel" && (
+				{sideThread.state?.mode === "panel" && sideWide && (
 					<SideThreadPanel>
 						<SideThreadBody
 							key={sideThread.state.threadId}
@@ -2169,7 +2166,9 @@ export function Chat({
 					</SideThreadPanel>
 				)}
 
-				{sideThread.state?.mode === "popover" && (
+				{/* Below the wide breakpoint a docked conversation shows as the
+				    popover's phone sheet: there is no room for the panel. */}
+				{(sideThread.state?.mode === "popover" || (sideThread.state?.mode === "panel" && !sideWide)) && (
 					<SideThreadPopover
 						state={sideThread.state}
 						chatId={chatId}
@@ -2842,7 +2841,7 @@ export function DockOverlay({
 	return (
 		<div className="pointer-events-none absolute inset-x-0 bottom-0" style={{ right: sbInset }}>
 			<div className="h-24 bg-gradient-to-t from-background via-background/85 to-transparent" />
-			<div ref={blockRef} className="relative bg-background pb-5">
+			<div ref={blockRef} className="relative bg-background pb-[max(1.25rem,env(safe-area-inset-bottom))]">
 				<div className={DOCK}>
 					<div ref={viewportRef} data-dock-viewport="" className="pointer-events-auto">
 					<div ref={bodyRef}>

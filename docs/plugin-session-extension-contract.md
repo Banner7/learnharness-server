@@ -205,7 +205,7 @@ without re-intercepting; changed/replaced targets refuse stale rather than silen
 
 Text-only engines refuse fresh images. Custom endpoints retain current attempt-transport
 policy; remote refusal is provider failure. Historical model-switch omission placeholders,
-ChatGPT/subscription/Claude CLI transport and CLI text-before-images ordering remain native.
+Claude CLI transport and CLI text-before-images ordering remain native.
 Parked steers retain existing memory-only tradeoffs: acknowledged acceptance can notify,
 but is not guaranteed durable history or a replayable notification.
 

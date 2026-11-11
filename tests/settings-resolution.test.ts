@@ -38,7 +38,6 @@ describe("resolveSettings", () => {
 
 	it("null record (first boot): non-model knobs land on factory defaults; every model view is EMPTY", () => {
 		const eff = resolveSettings(null);
-		assert.deepEqual(eff.general, { autoUpdate: true });
 		assert.deepEqual(eff.agent.tools, {});
 		assert.deepEqual(eff.agent.prompts, {});
 		assert.deepEqual(eff.agent.search, {});
@@ -50,13 +49,13 @@ describe("resolveSettings", () => {
 		assert.equal(eff.models.strong, null);
 		assert.equal(eff.models.cheap, null);
 		assert.equal(eff.models.vision, null);
-		assert.equal(eff.appearance.theme, "default");
+		assert.equal(eff.appearance.theme, "automatic");
 		assert.equal(eff.appearance.background, null);
 		assert.deepEqual(eff.appearance.colors, {});
 		assert.equal(eff.appearance.fontFamily, null);
-		assert.equal(eff.appearance.proseFontSize, 16);
+		assert.equal(eff.appearance.proseFontSize, 17);
 		assert.equal(eff.appearance.sessionNameSerif, true);
-		assert.equal(eff.appearance.mdRendering.headingWeight, 900);
+		assert.equal(eff.appearance.mdRendering.headingWeight, 700);
 		// wave 7 collapse: the master switch ONLY + the redesign's chunk
 		// budget — absent record resolves the factory 4096 (halved back
 		// from the digest-era 8192, owner, 2026-10-13)
@@ -66,7 +65,6 @@ describe("resolveSettings", () => {
 	it("explicit record values win over every factory default", () => {
 		const record: UserSettings = {
 			version: 1,
-			general: { autoUpdate: false },
 			agent: {
 				models: { researcher: { model: { provider: "openrouter", id: "qwen/qwen3.8-flash" } } },
 				tools: { research: false },
@@ -77,7 +75,6 @@ describe("resolveSettings", () => {
 			graph: { enabled: false },
 		};
 		const eff = resolveSettings(record);
-		assert.equal(eff.general.autoUpdate, false);
 		assert.deepEqual(eff.agent.models.researcher, {
 			provider: "openrouter",
 			id: "qwen/qwen3.8-flash",

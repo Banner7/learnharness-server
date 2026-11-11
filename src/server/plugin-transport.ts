@@ -1,5 +1,5 @@
 import { isPluginHostError } from "./plugin-host.ts";
-import { apiRequestRefusal } from "./desktop-access.ts";
+import { SECURITY_HEADERS, webAccessRefusal } from "./web-access.ts";
 import type { PluginFrontendContext, PluginInfo } from "../core/plugins.ts";
 
 /** Thin HTTP adapter, separately injectable so its tests never boot plugins. */
@@ -59,22 +59,25 @@ export function createPluginTransport(deps: { getHost(): Promise<PluginTransport
 	};
 }
 
+/** This route sits outside the proxy matcher, so it adds the shared headers itself. */
+function withSecurityHeaders(response: Response): Response {
+	const headers = new Headers(response.headers);
+	for (const [name, value] of Object.entries(SECURITY_HEADERS)) headers.set(name, value);
+	return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 /** This one streamed route must avoid Proxy's silently truncated body clone.
- * Preserve the identical mode-aware API policy before ANY params/body/host
+ * Apply the identical browser access gate before ANY params/body/host
  * work, including unsupported methods and framework-style OPTIONS responses. */
 export function createPluginDocumentRoute(transport: Pick<ReturnType<typeof createPluginTransport>, "convertDocument">) {
-	const refusal = (request: Request) => {
-		const error = apiRequestRefusal(request);
-		return error ? json({ error }, 403) : undefined;
-	};
-	const unsupported = (request: Request) => refusal(request) ?? new Response(null, { status: 405 });
+	const unsupported = (request: Request) => webAccessRefusal(request) ?? withSecurityHeaders(new Response(null, { status: 405 }));
 	return {
 		async POST(request: Request, context: { params: Promise<{ id: string }> }) {
-			const denied = refusal(request);
+			const denied = webAccessRefusal(request);
 			if (denied) return denied;
-			return transport.convertDocument((await context.params).id, request);
+			return withSecurityHeaders(await transport.convertDocument((await context.params).id, request));
 		},
-		OPTIONS: (request: Request) => refusal(request) ?? new Response(null, { status: 204, headers: { Allow: "OPTIONS, POST" } }),
+		OPTIONS: (request: Request) => webAccessRefusal(request) ?? withSecurityHeaders(new Response(null, { status: 204, headers: { Allow: "OPTIONS, POST" } })),
 		GET: unsupported, HEAD: unsupported, PUT: unsupported, PATCH: unsupported, DELETE: unsupported,
 	};
 }

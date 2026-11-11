@@ -9,8 +9,7 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "test:browser": "node tests/browser.mjs",
-    "test:native": "node tests/native.mjs"
+    "test:browser": "node tests/browser.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "6.11.1",

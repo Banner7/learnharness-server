@@ -51,7 +51,10 @@ function runtime(): Runtime {
 	});
 	const installationErrors: Record<string, string> = Object.create(null);
 	const host = createPluginHost({
-		directory: pluginDirectory, core, appVersion: packageJson.version, installationErrors,
+		// Plugins declare upstream LearnHarness versions (minAppVersion); this
+		// build's own version restarted at 0.1.0, so compatibility is checked
+		// against the upstream release whose plugin API it ships.
+		directory: pluginDirectory, core, appVersion: packageJson.pluginHostVersion, installationErrors,
 		// The process-global runtime owns one admission slot across all plugins
 		// and every separately compiled Next route module.
 		convertDocument: createPluginDocumentConverter().convert,

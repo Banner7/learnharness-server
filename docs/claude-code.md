@@ -1,17 +1,21 @@
 # Claude Code
 
-LearnHarness can use an externally installed **Claude Code CLI** as a model provider. This is separate from the Anthropic API and built-in subscription connections. The CLI owns authentication, routing, model access, and billing; LearnHarness does **not** guarantee subscription-only use.
+LearnHarness can use an externally installed **Claude Code CLI** as a model provider. This is separate from the Anthropic API. The CLI owns authentication, routing, model access, and billing; LearnHarness does **not** guarantee subscription-only use.
 
 ## Set up
 
-1. [Install and authenticate Claude Code](https://code.claude.com/docs/en/setup) outside LearnHarness, on **the machine running the LearnHarness server**, under its OS user. No always-running CLI process is needed.
-2. Make the executable discoverable in that server's `PATH` or a common user/native installation location. On Windows, a directly runnable `claude.exe` is required; `claude.cmd` alone does not qualify. Desktop launch environments may differ from terminals.
-3. Enable **Settings → Providers → External CLI → Claude Code**. This app-wide opt-in is **off by default**. Use **Check again** to refresh installation status.
+The Docker image includes a pinned Claude Code CLI (`/usr/local/bin/claude`) running as the image's `node` user. Enablement is out of band; there is no toggle in the app.
+
+1. Create a token with `claude setup-token` on any machine where you can sign in, and set it as `CLAUDE_CODE_OAUTH_TOKEN` in the server environment.
+2. Keep `CLAUDE_CONFIG_DIR` (default `/claude` in the image) on a volume writable by uid 1000. `DISABLE_AUTOUPDATER=1` keeps the pinned CLI from updating itself.
+3. Add `"claudeCode": {"enabled": true}` to `data/settings.json` (inside `LH_DATA_DIR`). The setting is read on every new admission, so no restart is needed. Remove it or set `false` to turn the provider off.
 4. Select a Claude Code model: `opus`, `sonnet`, or `haiku`. These are CLI aliases, not pinned underlying versions.
+
+Outside the image, install and authenticate the CLI under the server's OS user and make `claude` discoverable in that user's `PATH`. **Settings → Providers** shows installation status read-only.
 
 The minimum version is **2.1.259** ([contract](../src/core/contracts/claude-code.ts)). The check runs only `--version`, not authentication or inference. Fresh model processes check again and refuse old/unverifiable versions. Passing proves neither account access, quota, billing method, nor complete protocol compatibility.
 
-Install, update, sign in, and change CLI accounts externally. LearnHarness has no CLI account-status or reauthentication control. Disabling the opt-in blocks future requests without rewriting model selections or signing out the CLI; it does not interrupt an already admitted turn. Use normal cancellation for running work.
+Install, update, sign in, and change CLI accounts externally. LearnHarness has no CLI account-status or reauthentication control. Disabling the setting blocks future requests without rewriting model selections or signing out the CLI; it does not interrupt an already admitted turn. Use normal cancellation for running work.
 
 ## What goes through the CLI
 
@@ -47,8 +51,8 @@ Dollar costs remain **unpriced** and menus say **CLI billing**. LearnHarness doe
 
 | Symptom | Check |
 | --- | --- |
-| Model absent/unavailable | Enable opt-in; check executable discovery under the server's OS user/environment. |
-| Not found, unchecked, or update required | Repair/update the external executable, then **Check again**. The bounded version probe times out after five seconds. |
+| Model absent/unavailable | Check `claudeCode.enabled` in `data/settings.json` and executable discovery under the server's OS user/environment. |
+| Not found, unchecked, or update required | Repair or update the executable (in the image, rebuild with a newer pinned version). The bounded version probe times out after five seconds. |
 | Meets minimum but requests fail | Check native authentication, routing, model access, and quota externally. |
 | MCP identity/admission error | Investigate installed-CLI compatibility; do not bypass the bridge's admission checks. |
 | Answer starts a new process | Expected after idle expiry, restart, or failed reuse validation. |

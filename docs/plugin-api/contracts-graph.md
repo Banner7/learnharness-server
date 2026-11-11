@@ -15,6 +15,7 @@
 - [Position](#position)
 - [ProvenancePoint](#provenancepoint) — supporting declaration
 - [SessionCheckpoint](#sessioncheckpoint)
+- [VaultFileState](#vaultfilestate) — supporting declaration
 
 ## Cluster
 
@@ -518,10 +519,11 @@ export interface NotesSource {
     importedAt: string;
     contentFp?: string;
     extractions?: ExtractionRunUsage[];
+    vault?: VaultFileState;
 }
 ```
 
-**Related types:** [ExtractionRunUsage](contracts-chat.md#extractionrunusage).
+**Related types:** [ExtractionRunUsage](contracts-chat.md#extractionrunusage), [VaultFileState](contracts-graph.md#vaultfilestate).
 
 **Member index** (including nested object members; inherited members are defined in the linked base types):
 
@@ -530,6 +532,7 @@ export interface NotesSource {
 - [importedAt](#notessource-importedat)
 - [contentFp](#notessource-contentfp)
 - [extractions](#notessource-extractions)
+- [vault](#notessource-vault)
 
 ### NotesSource id
 
@@ -568,6 +571,16 @@ ChatRecord.extractions, idempotent per startedAt.
 
 ```ts
 extractions?: ExtractionRunUsage[];
+```
+
+### NotesSource vault
+
+Vault library: set only for sources that follow a Markdown file under
+LH_VAULT_DIR. Such a source's id is opaque (minted once, not a path
+hash) so a rename keeps its graph; `vault.path` is where it lives now.
+
+```ts
+vault?: VaultFileState;
 ```
 
 ## Position
@@ -667,4 +680,103 @@ The chat record's `updatedAt` at the time of the fold.
 
 ```ts
 foldedAt: string;
+```
+
+## VaultFileState
+
+Supporting declaration used by a public type. This is not an additional runtime API or SDK helper.
+
+A followed vault file's sync state. Hashes are sha256 hex of the file
+bytes: `contentHash` is what the scanner last saw, `extractedHash` the
+content the graph reflects (absent until a first extraction finishes).
+They differ while a note waits for extraction.
+
+```ts
+export interface VaultFileState {
+    path: string;
+    contentHash: string;
+    changedAt: string;
+    extractedHash?: string;
+    missingSince?: string;
+    absent?: boolean;
+    detached?: string[];
+    lastError?: string;
+}
+```
+
+**Member index** (including nested object members; inherited members are defined in the linked base types):
+
+- [path](#vaultfilestate-path)
+- [contentHash](#vaultfilestate-contenthash)
+- [changedAt](#vaultfilestate-changedat)
+- [extractedHash](#vaultfilestate-extractedhash)
+- [missingSince](#vaultfilestate-missingsince)
+- [absent](#vaultfilestate-absent)
+- [detached](#vaultfilestate-detached)
+- [lastError](#vaultfilestate-lasterror)
+
+### VaultFileState path
+
+Vault-relative POSIX path.
+
+```ts
+path: string;
+```
+
+### VaultFileState contentHash
+
+```ts
+contentHash: string;
+```
+
+### VaultFileState changedAt
+
+ISO — when the scanner first saw `contentHash` (the quiet-period clock).
+
+```ts
+changedAt: string;
+```
+
+### VaultFileState extractedHash
+
+```ts
+extractedHash?: string;
+```
+
+### VaultFileState missingSince
+
+ISO — set while the file is absent from what the scanner follows
+(gone, or on the skip list). Its ideas stay until the learner deletes it.
+
+```ts
+missingSince?: string;
+```
+
+### VaultFileState absent
+
+Set with missingSince when the scanner confirmed a skip-listed note's
+file is gone from disk: such a note is missing, not merely skipped.
+
+```ts
+absent?: boolean;
+```
+
+### VaultFileState detached
+
+Node ids detached before a re-extraction (graph-deletion.ts
+detachSourceTraces) that a successful run has not yet pruned. Kept
+across failures so a later success still removes stale ideas.
+
+```ts
+detached?: string[];
+```
+
+### VaultFileState lastError
+
+The last failed extraction's message; cleared on success and when the
+scanner sees new bytes. Auto-extract skips a note carrying one (the
+same bytes would fail again); Sync now retries it.
+
+```ts
+lastError?: string;
 ```

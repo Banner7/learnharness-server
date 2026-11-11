@@ -22,7 +22,7 @@ after(() => { globalThis.fetch = originalFetch; fs.rmSync(root, { recursive: tru
 const { prepareSubmissionImages, prepareSubmissionImageChannels } = await import("../src/server/submission-images.ts");
 const { prepareAndSteerChat, registerLiveAgent, unregisterLiveAgent, discardChatDeliveries } = await import("../src/server/jobs.ts");
 const { stores } = await import("../src/server/stores.ts");
-const { piModels, piEngineForSpec, configureProviderSource } = await import("../src/agent/models.ts");
+const { piModels, piEngineForSpec } = await import("../src/agent/models.ts");
 const { handleChatInput } = await import("../src/server/chat-handler.ts");
 const { createTeacherAgent, createPracticeAgent, createProberAgent } = await import("../src/agent/teacher-agent.ts");
 const { runningTurn } = await import("../src/server/turn-runs.ts");
@@ -259,12 +259,4 @@ test("steer HTTP route distinguishes stale replacements from the ordinary settle
 			if (!settled) assert.equal((await response.json()).code, "submission-stale");
 		} finally { unregisterLiveAgent(chat.id); discardChatDeliveries(chat.id); }
 	}
-});
-
-test("custom endpoint admission uses the existing effective-engine forced image policy, not sparse catalog input flags", async () => {
-	const entry = createProvider({ id: provider, models: [textModel], auth: { apiKey: { name: "fixture", resolve: async () => ({ auth: {} }) } }, api: { stream, streamSimple: stream } });
-	configureProviderSource({ isCustom: id => id === provider, sync: models => models.setProvider(entry) });
-	const engine = piEngineForSpec({ provider, id: "text" });
-	assert(engine.model.input.includes("image"));
-	assert.deepEqual(dimensions((await prepareSubmissionImages([image()], engine))![0]!), [2, 1]);
 });

@@ -364,7 +364,6 @@ describe("failed-response Retry (issue #110)", () => {
 		let built = false;
 		const factory: AgentFactory = (opts) => {
 			built = true;
-			assert.equal(opts.callPurpose?.background, false);
 			return createTeacherAgent(undefined, { ...opts, engine });
 		};
 		assert.equal((await turn(engine, chat.id, { type: "retry" }, factory)).status, 200);

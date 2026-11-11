@@ -31,7 +31,7 @@ Under **Settings → Agent → Models → Show advanced settings**, each Strong/
 | Short retention | Pass Pi's `short` preference. |
 | Long retention | Pass Pi's `long` preference; cache writes may cost more. |
 
-These are **provider-dependent preferences**, not fixed-duration or cache-hit promises. Some adapters ignore them, subscription transports may omit them, and custom endpoints may reject unsupported parameters. LearnHarness does not retry with a different preference.
+These are **provider-dependent preferences**, not fixed-duration or cache-hit promises. Some adapters ignore them, and custom endpoints may reject unsupported parameters. LearnHarness does not retry with a different preference.
 
 Sessions inherit Strong's retention preference while keeping their own model choices. Background roles inherit their assigned slot's preference, even with a model override; summarization uses the conversation preference. Changes apply at the next model request, including an existing loop, without altering an in-flight call or issuing warm-up calls. Explicit choices override Pi's retention environment preference; Pi default removes the explicit choice.
 
@@ -44,11 +44,10 @@ The server uses Pi AI's catalog and public `calculateCost`; the browser receives
 | Route | Meaning |
 | --- | --- |
 | API providers | Dollar estimates when catalog model and required usage detail are available. |
-| Built-in subscription connections | Labelled plan usage through explicit logical provider IDs, not API dollars. |
 | [Claude Code](claude-code.md) | CLI tokens retained; dollar costs unpriced. CLI result-line dollar totals are not imported; routing/billing belongs to the CLI. |
 | [Custom/local endpoints](custom-providers.md) | Tokens retained; unknown/unpriced costs, not $0. No rate editor. |
 
-Mixed sessions sum known API estimates and retain subscription/CLI labels. Unpriced turns remain unpriced, not free. Summarizer spending counts under the same rules but does not populate the conversation meter.
+Mixed sessions sum known API estimates and retain CLI labels. Unpriced turns remain unpriced, not free. Summarizer spending counts under the same rules but does not populate the conversation meter.
 
 Saved input counts are Pi-normalized **fresh input**, disjoint from cache buckets; do not subtract cached reads again. Old records missing a cache-write retention split, or tier-priced multi-call jobs missing per-call detail, stay unpriced where that detail could change the result. They are not reconstructed from aggregates. Flat-rate historical jobs can remain priceable with sufficient counts.
 
@@ -104,7 +103,7 @@ synthetic summary and saved usage; it does not measure real provider input.
 
 ### Implementation references
 
-Implementation: [`server/compaction.ts`](../src/server/compaction.ts), [`context-usage.ts`](../src/core/context-usage.ts), [`server/pricing.ts`](../src/server/pricing.ts). Regressions: `compaction-native-parity`, `context-usage`, `pricing-native-parity`, `subscription-usage`, and `session-cache-hit-rate` under `tests/`, plus CLI/custom-provider suites.
+Implementation: [`server/compaction.ts`](../src/server/compaction.ts), [`context-usage.ts`](../src/core/context-usage.ts), [`server/pricing.ts`](../src/server/pricing.ts). Regressions: `compaction-native-parity`, `context-usage`, `pricing-native-parity`, and `session-cache-hit-rate` under `tests/`, plus CLI/custom-provider suites.
 
 ## Upstream attribution
 

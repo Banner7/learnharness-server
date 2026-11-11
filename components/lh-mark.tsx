@@ -6,8 +6,7 @@
  * mark's own stroke in the strong line ink (white in dark, the foreground
  * in light).
  *
- * Replaces the "LH" wordmark text in the sidebar band (also the traffic-light
- * gutter's resident in the merged desktop chrome).
+ * Replaces the "LH" wordmark text in the sidebar band.
  */
 export function LhMark({ className = "" }: { className?: string }) {
 	return (

@@ -1,5 +1,5 @@
 /** Unit-only public widget recorder, deliberately not a native widget substitute.
- * Real controls, focus, validation and overlay geometry are proved by native.mjs. */
+ * It does not prove real controls, focus, validation or overlay geometry. */
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 // Linkedom's declarations implement an older DOM lib and conflict with modern

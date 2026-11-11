@@ -40,14 +40,14 @@ body:
     id: installation
     attributes:
       label: Installation method (optional)
-      description: For example, desktop installer, AppImage, system package, self-hosted web or source build.
+      description: For example, Docker image, source build, or other self-hosted setup.
     validations:
       required: false
   - type: input
     id: provider_model
     attributes:
       label: Provider and model (if relevant)
-      description: Include the provider, model and API-key or subscription connection type if relevant. Do not include any keys or tokens.
+      description: Include the provider, model and key source (environment, auth.json, custom provider or Claude Code) if relevant. Do not include any keys or tokens.
     validations:
       required: false
   - type: textarea

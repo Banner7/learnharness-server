@@ -5,9 +5,9 @@
  * every reasoning chain of the graph in one FULL-BLEED surface — the blur
  * + translucent background IS the surface, no inner card. The top bar is
  * THE shared TopBar (standardization ruling: one element, every surface —
- * h-15, lh-drag with carve-outs, select-none, sidebar reopen, traffic-
- * light gutter; born from this overlay's hand-rolled bar breaking every
- * rule at once). The overlay (z-40) covers home's floating header while
+ * h-15, select-none, sidebar reopen; born from this overlay's hand-rolled
+ * bar breaking every rule at once). The overlay (z-40) covers home's
+ * floating header while
  * open, so the TopBar's own SidebarToggle is the reopen path.
  *
  * HIERARCHY (three levels, one click each): CLUSTER (the birth session —
@@ -309,19 +309,17 @@ export function ChainTableBody({
 
 	return (
 		<div ref={tableRef} tabIndex={-1} data-testid="chain-table" className="relative flex h-full min-h-0 flex-col outline-none [&_[data-chain-nav-active=true]]:bg-accent/50 [&_[data-chain-nav-row]]:outline-none [&_[data-chain-nav-row]]:scroll-mt-8 [&_[data-chain-nav-row]]:scroll-mb-16">
-			{/* THE shared top bar (standardization ruling): drag mechanics,
-			    sidebar reopen, traffic-light gutter — the same element as every
-			    chat surface. NO TITLE (owner round 11, 2026-10-05): the serif
-			    title register is RESERVED — it always names a session; the
-			    chain table names nothing, so its bar carries counts + search +
-			    close only. Search + close carve out with lh-no-drag (the mask
-			    law: later in the DOM). */}
+			{/* THE shared top bar (standardization ruling): sidebar reopen —
+			    the same element as every chat surface. NO TITLE (owner round
+			    11, 2026-10-05): the serif title register is RESERVED — it
+			    always names a session; the chain table names nothing, so its
+			    bar carries counts + search + close only. */}
 			<TopBar sidebarToggle={!pickerChrome}>
 				<span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
 					{chains.length} {chains.length === 1 ? "chain" : "chains"} · {nodes.length} {nodes.length === 1 ? "node" : "nodes"}
 				</span>
 				{onOrganizationChange && <button type="button" aria-label="Add folder" data-testid="add-source-folder"
-					onClick={() => setCreatingFolder(true)} className="lh-no-drag rounded-lg p-2 text-muted-foreground hover:bg-accent"><FolderPlusIcon className="size-4" /></button>}
+					onClick={() => setCreatingFolder(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-accent"><FolderPlusIcon className="size-4" /></button>}
 				<div className="relative shrink-0">
 					<SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
 					<input
@@ -332,7 +330,7 @@ export function ChainTableBody({
 						placeholder="Search nodes…"
 						aria-label="Search nodes"
 						spellCheck={false}
-						className="lh-no-drag h-8 w-56 rounded-lg border bg-background pl-8 pr-3 text-xs outline-none placeholder:text-muted-foreground focus:border-ring"
+						className="h-8 w-56 rounded-lg border bg-background pl-8 pr-3 text-xs outline-none placeholder:text-muted-foreground focus:border-ring"
 					/>
 				</div>
 			<button
@@ -340,7 +338,7 @@ export function ChainTableBody({
 					data-testid="chain-table-close"
 					onClick={onClose}
 					aria-label="Close chains"
-					className="lh-no-drag flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-card/80 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-card/80 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 				>
 					<XIcon className="size-4" />
 				</button>

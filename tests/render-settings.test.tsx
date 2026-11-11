@@ -25,7 +25,6 @@ import { SettingsDialogBody, SettingsDialogProvider } from "../components/settin
 import { KEYBOARD_ACTIONS } from "../src/core/index.ts";
 import { DictationLanguageSetting } from "../components/dictation-language.tsx";
 import { SettingsMenuTrigger } from "../components/settings/controls.tsx";
-import { SubscriptionConnections } from "../components/settings/subscription-connections.tsx";
 
 function renderToStaticMarkup(node: React.ReactNode) {
 	return renderStatic(<InteractionLayersProvider>{node}</InteractionLayersProvider>);
@@ -59,6 +58,7 @@ describe("SettingsDialog (the designed surface, SSR)", () => {
 			["agent", "Agent", "bot"],
 			["appearance", "Appearance", "palette"],
 			["graph", "Graph", "waypoints"],
+			["library", "Library", "library"],
 			["keyboard", "Keyboard", "keyboard"],
 			["general", "General", "settings"],
 			["core-plugins", "Core plugins", "plug"],
@@ -136,17 +136,6 @@ describe("Providers settings-label typography", () => {
 		const html = renderToStaticMarkup(<DictationLanguageSetting />);
 		assert.ok(html.includes('<span class="block font-prose text-(length:--lh-prose-size)">Language</span>'));
 		assert.ok(tagOf(html, "dictation-language").includes("font-ui text-xs"));
-	});
-
-	it("only Providers subscription labels use sans; setup labels retain their compact mono styling", () => {
-		const settings = renderToStaticMarkup(<SubscriptionConnections />);
-		const setup = renderToStaticMarkup(<SubscriptionConnections setup />);
-		for (const label of ["ChatGPT", "GitHub Copilot", "Grok"]) {
-			assert.ok(settings.includes(`<span class="font-prose text-(length:--lh-prose-size) text-foreground">${label}</span>`), `${label}: settings sans label`);
-			assert.ok(setup.includes(`<span class="font-ui text-xs text-foreground">${label}</span>`), `${label}: unchanged setup label`);
-		}
-		assert.equal((settings.match(/>Connect<\/button>/g) ?? []).length, 3);
-		assert.equal((setup.match(/>Connect<\/button>/g) ?? []).length, 3);
 	});
 });
 
@@ -355,7 +344,7 @@ describe("GraphSection — master switch + chunk budget (wave 7 + 2026-10-02)", 
 describe("KeysSection (thin SSR)", () => {
 	it("SSR = the loading state (effects never fire)", () => {
 		const html = renderToStaticMarkup(<KeysSection />);
-		assert.ok(html.includes("Loading keys…"));
+		assert.ok(html.includes("Loading providers…"));
 	});
 });
 
@@ -394,13 +383,13 @@ describe("AppearanceSection (thin SSR)", () => {
 		assert.ok(!html.includes("theme-remove-"), "presets cannot be removed");
 	});
 
-	it("absent theme = the Default card pressed", () => {
+	it("absent theme = the Automatic card pressed", () => {
 		const html = renderAppearance(undefined);
-		assert.ok(tagOf(html, "theme-card-default").includes('aria-pressed="true"'));
+		assert.ok(tagOf(html, "theme-card-automatic").includes('aria-pressed="true"'));
 	});
 
 	it("an imported theme gets a custom card with a remove button", () => {
-		const custom: Theme = { ...BUILTIN_THEMES[0]!, id: "my-ayu", name: "My Ayu", builtin: false };
+		const custom: Theme = { ...BUILTIN_THEMES.find((t) => t.id === "catppuccin-mocha")!, id: "my-ayu", name: "My Ayu", builtin: false };
 		const html = renderAppearance({ theme: "my-ayu" }, [custom]);
 		assert.ok(tagOf(html, "theme-card-my-ayu").includes('aria-pressed="true"'));
 		assert.ok(html.includes('data-testid="theme-remove-my-ayu"'));
@@ -432,7 +421,7 @@ describe("AppearanceSection (thin SSR)", () => {
 		assert.ok(html.includes('data-testid="font-trigger"'));
 		assert.ok(html.includes('data-testid="row-prose-size"'));
 		assert.ok(html.includes('data-testid="row-heading-weight"'));
-		assert.ok(html.includes("16px"));
+		assert.ok(html.includes("17px"));
 		assert.ok(!html.includes('data-testid="row-mode"'), "the mode row is gone — the theme declares it");
 	});
 });

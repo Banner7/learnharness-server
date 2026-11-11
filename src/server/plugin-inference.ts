@@ -3,11 +3,10 @@ import * as path from "node:path";
 import { normalizeContext, type AssistantMessage, type AssistantMessageEvent, type SimpleStreamOptions, type Usage } from "@earendil-works/pi-ai";
 import { AssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import type { PiEngine } from "../agent/models.ts";
-import { markUnadmittedUsage, usageWasAdmitted, type SubscriptionDispatchLifecycle } from "../agent/subscription-request-cycle.ts";
+import { usageWasAdmitted } from "../agent/usage-admission.ts";
 import type { PluginCallPurpose, PluginModelSpec } from "../core/plugin-agents.ts";
 import type { PluginInference, PluginInferenceOptions, PluginInferenceRequest } from "../core/plugins.ts";
 import type { ModelCatalogResponse } from "../core/contracts/models.ts";
-import { NATIVE_SUBSCRIPTIONS } from "../core/contracts/subscriptions.ts";
 import { providerKeyMissing } from "../core/settings.ts";
 import { validatePluginInferenceOptions as optionsFor } from "../core/plugin-validation.ts";
 
@@ -16,7 +15,7 @@ import { validatePluginInferenceOptions as optionsFor } from "../core/plugin-val
 export interface PluginInferenceDeps {
 	catalog(): ModelCatalogResponse | Promise<ModelCatalogResponse>;
 	providerKeyPresent(provider: string): boolean | Promise<boolean>;
-	engineForSpec(model: PluginModelSpec, background: boolean, lifecycle?: SubscriptionDispatchLifecycle): PiEngine | Promise<PiEngine>;
+	engineForSpec(model: PluginModelSpec): PiEngine | Promise<PiEngine>;
 }
 export interface PluginInferenceAdapter {
 	inference: PluginInference;
@@ -24,7 +23,6 @@ export interface PluginInferenceAdapter {
 	onUsage(model: PluginModelSpec, usage: Usage): void;
 }
 const levels = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-const subscription = (provider: string) => provider === "chatgpt" || NATIVE_SUBSCRIPTIONS.some((p) => p.logicalId === provider);
 function abortError(): Error { return new DOMException("Plugin inference cancelled or disabled", "AbortError"); }
 function check(signal: AbortSignal): void { if (signal.aborted) throw abortError(); }
 /** Cancel the wait, not just the eventual transport. Removes listeners on every path. */
@@ -117,9 +115,10 @@ export function createPluginInference(
 	const engineFor = async (model: PluginModelSpec, purpose: PluginCallPurpose, options?: PluginInferenceOptions): Promise<PiEngine> => {
 		check(signal);
 		const boundOptions = optionsFor(options);
-		const spec = modelSpec(model), classified = purposeOf(purpose);
+		const spec = modelSpec(model);
+		purposeOf(purpose);
 		const deps = await available(spec, signal);
-		const base = await bounded(deps.engineForSpec(spec, classified === "background"), signal);
+		const base = await bounded(deps.engineForSpec(spec), signal);
 		if (base.model.provider !== spec.provider || base.model.id !== spec.id) throw new Error("Inference engine did not honor the explicitly selected model");
 		if (boundOptions.reasoning !== undefined && boundOptions.reasoning !== base.level) throw new Error("Set model.thinkingLevel instead of overriding engine reasoning");
 		return { model: base.model, level: base.level, streamFn: (_model, context, runtime) => {
@@ -132,14 +131,7 @@ export function createPluginInference(
 				let terminal = false;
 				let finalMessage: AssistantMessage | undefined;
 				const stopSource = () => { source?.end(finalMessage ?? failure(base, partial, true)); };
-				let admitted = !subscription(spec.provider);
-				const lifecycle: SubscriptionDispatchLifecycle = {
-					captured: () => { check(combined); },
-					beforeDispatch: () => { check(combined); admitted = true; },
-					noDispatch: () => { /* No admission is not a billed provider call. */ },
-				};
 				const finalize = (message: AssistantMessage) => {
-					if (!admitted) markUnadmittedUsage(message.usage);
 					terminal = true; finalMessage = message; finish(message);
 				};
 				try {
@@ -150,7 +142,7 @@ export function createPluginInference(
 					const safe = optionsFor(Object.fromEntries(Object.entries({ temperature, maxTokens, cacheRetention, reasoning, thinkingBudgets, toolChoice, timeoutMs, maxRetries, maxRetryDelayMs, metadata, ...boundOptions }).filter(([, value]) => value !== undefined)));
 					if (safe.reasoning !== undefined && safe.reasoning !== base.level) throw new Error("Set model.thinkingLevel instead of overriding engine reasoning");
 					const current = await available(spec, combined);
-					const engine = await bounded(current.engineForSpec(spec, classified === "background", lifecycle), combined);
+					const engine = await bounded(current.engineForSpec(spec), combined);
 					if (engine.model.provider !== spec.provider || engine.model.id !== spec.id) throw new Error("Inference engine changed the explicitly selected model");
 					const providerOptions: SimpleStreamOptions = { ...safe, signal: combined, reasoning: engine.level === "off" ? undefined : engine.level };
 					source = engine.streamFn(engine.model, context, providerOptions);

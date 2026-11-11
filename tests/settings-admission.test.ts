@@ -19,7 +19,6 @@ const settingsFile = path.join(process.env.LH_DATA_DIR, "settings.json");
 const initial = {
 	version: 1,
 	agent: { workerRequestConcurrency: 1, tools: { research: false }, graphTools: { enabled: false } },
-	general: { autoUpdate: false },
 	futureSection: { preserved: true },
 };
 fs.writeFileSync(settingsFile, JSON.stringify(initial));

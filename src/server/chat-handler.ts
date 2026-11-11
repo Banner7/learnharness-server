@@ -7,11 +7,6 @@ import {
 	type TeachingAgent,
 } from "../agent/teacher-agent.ts";
 import { piEngineForSpec, type PiEngine } from "../agent/models.ts";
-import { connectionBackgroundAllowed as subscriptionBackgroundAllowed, connectionScopeCurrent, isSubscriptionProvider } from "../agent/subscription-connections.ts";
-import { nativeSubscriptionError } from "../agent/subscription-stream.ts";
-import { chatGPTStreamError } from "../agent/chatgpt-stream.ts";
-import { SubscriptionRequestCycle, type SubscriptionDispatchLifecycle } from "../agent/subscription-request-cycle.ts";
-import { reconstructRequestCause } from "../core/native-messages.ts";
 import { createJobRunner } from "../agent/subagents/runner.ts";
 import { createExtractionPipeline } from "../agent/subagents/extraction.ts";
 import type { ModelRole } from "../../config.ts";
@@ -20,7 +15,6 @@ import {
 	noteSteersDurable,
 	reconcileUserSteers,
 	registerLiveAgent,
-	restoreUncommittedAutomatic,
 	setJobRespawn,
 	setTurnRunner,
 	settleSteers,
@@ -60,7 +54,7 @@ import { samePluginQuestionOccurrence } from "../core/plugin-questions.ts";
 import { composeInstructions } from "../agent/teacher-agent.ts";
 import { ensureCompacted, kickCompaction, effectiveThresholdTokens, projectedContextTokens, compactionInFlight } from "./compaction.ts";
 import { COMPACTION_RESERVE_TOKENS } from "../core/compaction.ts";
-import { catalogContextLimits, refreshConnectionCatalog } from "./model-catalog.ts";
+import { catalogContextLimits } from "./model-catalog.ts";
 import { emit } from "../core/events.ts";
 import { settledTurnResponse } from "./turn-runs.ts";
 import { asAgentMessages, type LhMessage } from "../core/native-messages.ts";
@@ -98,9 +92,9 @@ import type {CallUsage} from "../core/contracts.ts";
  */
 
 /** Fresh check only at new background-run admission; never cancel a run
- * already in progress when the opt-in is switched off. */
+ * already in progress when the Claude Code opt-in is switched off. */
 function connectionBackgroundAllowed(provider: string): boolean {
-	return subscriptionBackgroundAllowed(provider) && (provider !== CLAUDE_CODE_PROVIDER || providerKeyPresent(provider));
+	return provider !== CLAUDE_CODE_PROVIDER || providerKeyPresent(provider);
 }
 
 function settlementErrorText(error: unknown): string {
@@ -165,7 +159,7 @@ setTurnRunner(async (chatId, input) => {
  *  FRESH so a settings PUT between dispatch and spawn lands. */
 function resolveEngine(role: ModelRole): PiEngine | undefined {
 	const spec = resolveRoleSpec(role, stores.settingsStore.readSettings());
-	return spec ? piEngineForSpec(spec, true, undefined, retentionForSlot(ROLE_SLOT[role])) : undefined;
+	return spec ? piEngineForSpec(spec, retentionForSlot(ROLE_SLOT[role])) : undefined;
 }
 
 /** Slot policy is independent of model overrides. Read fresh per operation,
@@ -301,12 +295,6 @@ export async function handleChatInput(
 	// persist (nothing durable changes); wake-pipeline turns ride the same
 	// path. The affected tier is strong — the conversation chain's own tier
 	// (a chat.model override still resolves through it).
-	if (isSubscriptionProvider(conversation.provider)) {
-		await refreshConnectionCatalog(conversation.provider);
-		if (input.type === "steers" && !connectionBackgroundAllowed(conversation.provider)) {
-			return Response.json({ error: "Background use is off for this connection. Automatic follow-up remains deferred in its queue." }, { status: 403 });
-		}
-	}
 	if (!providerKeyPresent(conversation.provider)) {
 		const envelope = providerKeyMissingEnvelope(conversation.provider, ["strong"]);
 		console.info(`[chat ${chatId}] turn refused — ${JSON.stringify(envelope)}`);
@@ -322,24 +310,15 @@ export async function handleChatInput(
 	// placement mirrors the BYOK/key gates — BEFORE appends and
 	// beginTurn, no liveness effects — and the record re-reads after
 	// because compaction appends the marker.
-	const callPurpose = { background: input.type === "steers" || (input.type === "continue" && reconstructRequestCause(record.messages) !== "foreground") };
-	let requestCycle: SubscriptionRequestCycle | undefined;
 	const tentativeSideIds = new Set<string>();
 	const admittedSideIds = new Set<string>();
-	let preparedSideIds = new Set<string>();
-	const admitSideContext = () => { for (const id of preparedSideIds) admittedSideIds.add(id); };
-	const lifecycle: SubscriptionDispatchLifecycle = {
-		captured: (scope) => requestCycle?.captured(scope),
-		beforeDispatch: (scope) => { requestCycle?.beforeDispatch(scope); admitSideContext(); },
-		noDispatch: (kind) => requestCycle?.noDispatch(kind),
-	};
 	let conversationEngine: PiEngine;
 	let compactionEngine: PiEngine;
 	try {
-		conversationEngine = piEngineForSpec(conversation, () => callPurpose.background, lifecycle, retentionForSlot("strong"));
-		compactionEngine = piEngineForSpec(conversation, true, undefined, retentionForSlot("strong"));
+		conversationEngine = piEngineForSpec(conversation, retentionForSlot("strong"));
+		compactionEngine = piEngineForSpec(conversation, retentionForSlot("strong"));
 	}
-	catch { return Response.json({ error: conversation.provider === "chatgpt" ? chatGPTStreamError("model catalog") : isSubscriptionProvider(conversation.provider) ? nativeSubscriptionError(conversation.provider, "model catalog") : "The selected model is unavailable." }, { status: 503 }); }
+	catch { return Response.json({ error: "The selected model is unavailable." }, { status: 503 }); }
 	const capturedPolicy = submissionImagePolicyKey(conversationEngine);
 	const capturedConversation = JSON.stringify(conversation);
 	try {
@@ -449,7 +428,7 @@ export async function handleChatInput(
 			if (checkModel) {
 				const spec = resolveConversationSpec(record.settings, effectiveSettings().models.strong);
 				if (!spec || JSON.stringify(spec) !== capturedConversation) return false;
-				const checked = piEngineForSpec(spec, () => callPurpose.background, lifecycle, retentionForSlot("strong"));
+				const checked = piEngineForSpec(spec, retentionForSlot("strong"));
 				if (submissionImagePolicyKey(checked) !== capturedPolicy || checked.level !== conversationEngine.level) return false;
 			}
 			assertPluginQuestionInputAllowed(record.messages, input);
@@ -572,23 +551,6 @@ export async function handleChatInput(
 	// truth instead of the pre-answer record. (Wave C: the wake's markers
 	// ride this same write-ahead - the pump de-queued them at fire, so this
 	// is the ONLY copy ever appended.)
-	// Prospectively check new exchanges from ALL threads for early automatic
-	// refusal. This snapshot does not authorize the final assembled request;
-	// SDK preparation re-collects live text and validates queued steering too.
-	const sideContextSnapshots = sideContext.snapshot(chatId);
-	const afterInput = [...record.messages, ...appends];
-	const sideQuestions = hasUnresolvedQuestion(afterInput) ? [] : sideConversationEntries({
-		messages: record.messages, sideChats: sideContextSnapshots,
-	}, afterInput);
-	const withSideQuestions = input.type === "answer" || input.type === "retry-question" || input.type === "plugin-question-answer" ? [...appends, ...sideQuestions] : [...sideQuestions, ...appends];
-	const prospective = [...record.messages, ...withSideQuestions].filter((message) => !retryOmissions.has(message.id));
-	const sideContextBlocked = sideQuestions.length > 0 && !fitsSideContext(prospective);
-	// An automatic batch has not been admitted; refuse it without persisting
-	// its markers. Its existing caller retains/restores the queued work.
-	if (sideContextBlocked && isSubscriptionProvider(conversation.provider) && input.type === "steers") {
-		endTurn(chatId);
-		return new Response(sideBudgetError().message, { status: 400 });
-	}
 	// Only the learner/automatic input is write-ahead. Raw exchanges are
 	// already durable in sideChats; their delivery entries join the SDK
 	// request at its preparation boundary, and publish only if admitted.
@@ -598,13 +560,10 @@ export async function handleChatInput(
 	// failures only. Count that SAME temporary prefix at settlement, or the
 	// retained failures would make persistTurn skip genuinely new output.
 	const agentMessages = input.type === "retry" ? merged.filter((m) => !retryOmissions.has(m.id)) : merged;
-	const stagedAutomatic = isSubscriptionProvider(conversation.provider) && input.type === "steers";
-	let persistBaseCount = stagedAutomatic ? record.messages.length : agentMessages.length;
+	const persistBaseCount = agentMessages.length;
 	try {
-		if (!stagedAutomatic) {
-			stores.chatStore.saveMessages(chatId, merged);
-			inputSaved = true;
-		}
+		stores.chatStore.saveMessages(chatId, merged);
+		inputSaved = true;
 	} catch (err) {
 		console.error(`[chat ${chatId}] write-ahead persist failed:`, err);
 		return new Response("Your input could not be saved. Please try again.", { status: 500 });
@@ -612,7 +571,7 @@ export async function handleChatInput(
 	// Visibility bookkeeping is not the canonical save. Its failure must
 	// neither misreport a saved input as lost nor prevent the turn running.
 	try {
-		if (!stagedAutomatic) noteSteersDurable(chatId, merged);
+		noteSteersDurable(chatId, merged);
 	} catch (err) {
 		console.error(`[chat ${chatId}] input visibility bookkeeping failed:`, err);
 	}
@@ -658,41 +617,25 @@ export async function handleChatInput(
 	// enabled). The definitive toggleable set is TOGGLEABLE_TOOLS — the
 	// sub-agent JOB tools (research/demo/visual/pdf; adjudicated with the
 	// user: quiz/ask/fs/plan/probe_done are always-on).
-	if (isSubscriptionProvider(conversation.provider)) requestCycle = new SubscriptionRequestCycle({
-		initialMessages: asAgentMessages(agentMessages),
-		staged: stagedAutomatic ? asAgentMessages(appends) : undefined,
-		foregroundOwed: !callPurpose.background,
-		purpose: callPurpose,
-		scopeCurrent: (scope) => connectionScopeCurrent(conversation.provider, scope),
-		commitStaged: () => {
-			stores.chatStore.saveMessages(chatId, merged);
-			persistBaseCount = merged.length;
-			noteSteersDurable(chatId, merged);
-		},
-		restoreAutomatic: (automaticIds, retainedIds) => restoreUncommittedAutomatic(chatId, constructed, automaticIds, retainedIds),
-	});
 	let pendingSideBudgetError: Error | undefined;
 	const agentOpts: AgentBuildOptions = {
 		pluginContributions,
 		engine,
-		callPurpose,
-		requestCycle,
 		messages: asAgentMessages(agentMessages),
 		validateContext: (messages) => {
 			// This is the SDK's ACTUAL request, after both prepared references
 			// and already-drained steering have joined it. A pre-queue estimate
 			// cannot authorize this combined payload.
-			preparedSideIds = new Set(messages.map((message) => (message as LhMessage).id).filter((id) => tentativeSideIds.has(id)));
+			const preparedSideIds = new Set(messages.map((message) => (message as LhMessage).id).filter((id) => tentativeSideIds.has(id)));
 			if (pendingSideBudgetError || (preparedSideIds.size > 0 && !fitsSideContext(messages as readonly LhMessage[]))) {
 				pendingSideBudgetError = sideBudgetError();
 				const rejected = new Set([...tentativeSideIds].filter((id) => !admittedSideIds.has(id)));
 				// Only unadmitted reference entries are withdrawn from transient
 				// loop state. No saved prefix, learner steer or completed tool is removed.
 				constructed.state.messages = constructed.state.messages.filter((message) => !rejected.has((message as LhMessage).id));
-				requestCycle?.rejectLocalRequest(rejected);
 				throw pendingSideBudgetError;
 			}
-			if (!requestCycle) admitSideContext(); // BYOK has no subscription admission gate
+			for (const id of preparedSideIds) admittedSideIds.add(id);
 		},
 		contextUpdates: (messages) => {
 			pendingSideBudgetError = undefined;
@@ -814,7 +757,6 @@ export async function handleChatInput(
 		providerEventNote(chatId, "turn", `run start (base: ${agentMessages.length} messages)`);
 		const handle = runPiTurn({
 			agent: constructed,
-			requestCycle,
 			// The next-turn SDK hook covers internal calls. The steering poll
 			// supplies the same fresh cargo on the first/recovery call, with
 			// normal lifecycle events and no extra provider request.
@@ -836,8 +778,6 @@ export async function handleChatInput(
 			// route through here: they ride the error-result path and reach the
 			// transcript directly (the retry context the model saw).
 			onError: (error) => {
-				if (conversation.provider === "chatgpt") return chatGPTStreamError(String(error));
-				if (isSubscriptionProvider(conversation.provider)) return nativeSubscriptionError(conversation.provider, String(error));
 				console.error(`[chat ${chatId}] turn error:`, error);
 				return "An error occurred.";
 			},
@@ -884,7 +824,7 @@ export async function handleChatInput(
 				// PRACTICE (owner, 2026-10-04): practice sessions write nothing —
 				// no extraction, no graph, no coverage (v1: the session itself
 				// is the deliverable).
-				if ((!requestCycle || requestCycle.dispatched) && record.kind !== "practice" && extractionEnabled(effective.graph)) {
+				if (record.kind !== "practice" && extractionEnabled(effective.graph)) {
 					// Fresh per-turn read of the graph section's chunk budget
 					// (extraction-UX redesign, 2026-09-24): the trigger compares
 					// against it and the pipeline's batches share it.
@@ -922,13 +862,13 @@ export async function handleChatInput(
 				// beneath-threshold record is a silent no-op. Skipped under
 				// tests (the extraction precedent — scripted chats are
 				// fixtures; the service itself is pinned directly).
-				if (process.env.NODE_ENV !== "test" && !pendingSideBudgetError && (!requestCycle || requestCycle.dispatched))
+				if (process.env.NODE_ENV !== "test" && !pendingSideBudgetError)
 					kickCompaction(() => {
 						const fresh = effectiveSettings();
 						const spec = resolveConversationSpec(stores.chatStore.getChat(chatId)?.settings, fresh.models.strong);
 						if (!spec || !connectionBackgroundAllowed(spec.provider)) return null;
 						let kickEngine: PiEngine;
-						try { kickEngine = piEngineForSpec(spec, true, undefined, retentionForSlot("strong")); } catch { return null; }
+						try { kickEngine = piEngineForSpec(spec, retentionForSlot("strong")); } catch { return null; }
 						const kickModelId = `${kickEngine.model.provider}:${kickEngine.model.id}`;
 						const freshRecord = stores.chatStore.getChat(chatId);
 						if (!freshRecord) return null;
@@ -966,7 +906,6 @@ export async function handleChatInput(
 		// grading and the canonical save, then closes before teacher output. The
 		// turn itself is a server-side process (ruling 2026-09-25) — it never
 		// needed this connection, only a view did.
-		if (stagedAutomatic && requestCycle && !(await requestCycle.admission)) return Response.json({ error: "Automatic follow-up remains deferred in its queue." }, { status: 403 });
 		return Response.json({ ok: true });
 	} catch (err) {
 		console.error(`[chat ${chatId}] turn failed to start:`, err);

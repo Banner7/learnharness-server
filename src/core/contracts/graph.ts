@@ -89,6 +89,37 @@ export interface NotesSource {
 	/** The run's usage log — same append-only discipline as
 	 *  ChatRecord.extractions, idempotent per startedAt. */
 	extractions?: ExtractionRunUsage[];
+	/** Vault library: set only for sources that follow a Markdown file under
+	 *  LH_VAULT_DIR. Such a source's id is opaque (minted once, not a path
+	 *  hash) so a rename keeps its graph; `vault.path` is where it lives now. */
+	vault?: VaultFileState;
+}
+
+/** A followed vault file's sync state. Hashes are sha256 hex of the file
+ *  bytes: `contentHash` is what the scanner last saw, `extractedHash` the
+ *  content the graph reflects (absent until a first extraction finishes).
+ *  They differ while a note waits for extraction. */
+export interface VaultFileState {
+	/** Vault-relative POSIX path. */
+	path: string;
+	contentHash: string;
+	/** ISO — when the scanner first saw `contentHash` (the quiet-period clock). */
+	changedAt: string;
+	extractedHash?: string;
+	/** ISO — set while the file is absent from what the scanner follows
+	 *  (gone, or on the skip list). Its ideas stay until the learner deletes it. */
+	missingSince?: string;
+	/** Set with missingSince when the scanner confirmed a skip-listed note's
+	 *  file is gone from disk: such a note is missing, not merely skipped. */
+	absent?: boolean;
+	/** Node ids detached before a re-extraction (graph-deletion.ts
+	 *  detachSourceTraces) that a successful run has not yet pruned. Kept
+	 *  across failures so a later success still removes stale ideas. */
+	detached?: string[];
+	/** The last failed extraction's message; cleared on success and when the
+	 *  scanner sees new bytes. Auto-extract skips a note carrying one (the
+	 *  same bytes would fail again); Sync now retries it. */
+	lastError?: string;
 }
 
 /** What one cluster-naming refresh did — the namer's ClusterRefreshStats,

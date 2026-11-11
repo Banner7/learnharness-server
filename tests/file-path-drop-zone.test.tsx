@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { afterEach, test } from "node:test";
 import { parseHTML } from "linkedom";
-import { FilePathDropZone } from "../components/file-path-drop-zone.tsx";
+import { BROWSER_NOTICE, FilePathDropZone } from "../components/file-path-drop-zone.tsx";
 import { useDictationTarget } from "../components/dictation.tsx";
 import { PathInput } from "../components/path-input.tsx";
 import { readPathInput, restorePathSelection } from "../components/path-input-dom.ts";
@@ -116,109 +116,22 @@ async function fixture({ desktop = true, claimed = true, onContentRoot }: {
 	};
 }
 
-test("desktop drop inserts quoted paths at the focused editor caret instead of the dictation claimant", async () => {
-	const f = await fixture();
-	f.focusEditor(4);
-	const paths = ["/actual/course notes.pdf", "C:\\course\\chapter`one.pdf", "\\\\host\\share\\図.png"];
-	const files = paths.map((path, index) => f.file(`display-name-${index}.pdf`, path));
-	const dropped = await f.event("drop", f.transfer(files));
-	assert.equal(dropped.defaultPrevented, true);
-	assert.equal(f.value, `read ${paths.map(quoteFilePath).join(" ")} this`);
-	assert.equal(readPathInput(f.editor), f.value);
-	assert.equal(f.doc.activeElement, f.editor);
-	assert.deepEqual(f.appends, [], "focused editor wins over the registered question field");
-	assert.deepEqual(f.resolved, files, "only Electron's full path, never File.name, enters the draft");
-	assert.equal(f.status, "", "successful file attachment is silent");
-	f.assertPathOnly();
-});
-
-test("a successful drop clears an earlier failure without replacing it with a confirmation bubble", async () => {
-	const f = await fixture();
-	await f.event("drop", f.transfer([f.file("virtual.pdf")]));
-	assert.match(f.status, /No local file paths were available/);
-	await f.event("drop", f.transfer([f.file("valid.pdf", "/existing/valid.pdf")]));
-	assert.deepEqual(f.appends, ["`/existing/valid.pdf`"]);
-	assert.equal(f.doc.querySelector('[role="status"]'), null);
-	f.assertPathOnly();
-});
-
-test("unfocused drop uses the dictation target registry, not the last focused editor", async () => {
-	const f = await fixture();
-	f.focusEditor(4);
-	f.doc.querySelector<HTMLElement>('[data-testid="elsewhere"]')!.focus();
-	const paths = ["~/notes one.pdf", "/tmp/notes`final`"];
-	await f.event("drop", f.transfer(paths.map((path) => f.file("not-a-physical-path.pdf", path))));
-	assert.deepEqual(f.appends, [paths.map(quoteFilePath).join(" ")]);
-	assert.equal(f.value, "readthis", "saved editor caret must not override current default target");
-	f.assertPathOnly();
-});
-
-test("browser drop prevents navigation, explains desktop-only local paths and never infers File.name", async () => {
+test("a device file drop prevents navigation, explains server paths and never infers File.name", async () => {
 	const f = await fixture({ desktop: false });
 	const transfer = f.transfer([f.file("/not/a/backing/path.pdf")]);
 	const enter = await f.event("dragenter", transfer);
 	assert.equal(enter.defaultPrevented, true);
-	assert.match(f.doc.querySelector('[data-testid="file-path-drop-indicator"]')!.textContent!, /desktop app/);
+	assert.ok(f.doc.querySelector('[data-testid="file-path-drop-indicator"]'));
 	const over = await f.event("dragover", transfer);
 	assert.equal(over.defaultPrevented, true);
 	assert.equal(transfer.dropEffect, "copy");
 	const drop = await f.event("drop", transfer);
 	assert.equal(drop.defaultPrevented, true);
-	assert.match(f.status, /Local file paths can only be attached in the desktop app/);
-	assert.match(f.status, /paste a full path instead/);
+	assert.equal(f.status, BROWSER_NOTICE);
 	assert.equal(f.doc.querySelector('[data-testid="file-path-drop-indicator"]'), null);
 	assert.equal(f.value, "readthis");
 	assert.deepEqual(f.appends, []);
 	assert.deepEqual(f.resolved, []);
-	f.assertPathOnly();
-});
-
-test("mixed files and directories retain one original path each in drop order; invalid paths are skipped", async () => {
-	const f = await fixture();
-	const files = [
-		f.file("virtual.pdf"), f.file("bad.pdf", "relative.pdf"), f.file("broken.pdf", new Error("not backed")),
-		f.file("folder", "/directory"), f.file("valid.pdf", "/existing/valid.pdf"),
-		f.file("multiline.pdf", "/a\nb.pdf"), f.file("NUL.pdf", "/a\0b.pdf"), f.file("url.pdf", "file:///a.pdf"),
-	];
-	await f.event("drop", f.transfer(files, [3]));
-	assert.deepEqual(f.appends, ["`/directory/` `/existing/valid.pdf`"]);
-	assert.equal(f.resolved.includes(files[3]!), true, "a directory resolves through the same OS backing-path bridge");
-	assert.match(f.status, /Some dropped items had no available file path/);
-	f.assertPathOnly();
-});
-
-test("an empty folder attaches once with durable directory syntax, without enumerating descendants", async () => {
-	const f = await fixture();
-	f.focusEditor(4);
-	const folder = f.file("empty folder", "/course/empty folder");
-	const transfer = f.transfer([folder], [0]);
-	transfer.items[0]!.webkitGetAsEntry = () => ({ isDirectory: true, isFile: false, createReader() { throw new Error("Must not traverse entries"); } });
-	await f.event("drop", transfer);
-	assert.equal(f.value, "read `/course/empty folder/` this");
-	assert.deepEqual(f.resolved, [folder]);
-	assert.equal(f.editor.querySelectorAll("[data-file-path-source]").length, 1);
-	f.assertPathOnly();
-});
-
-test("only known directories gain markers: extensionless files and unavailable metadata are never guessed", async () => {
-	const f = await fixture();
-	const files = [f.file("README", "/course/README"), f.file("folder.pdf", "/course/folder.pdf"), f.file("unknown", "/course/unknown")];
-	const transfer = f.transfer(files, [1]);
-	transfer.items[2]!.webkitGetAsEntry = () => { throw new Error("No metadata"); };
-	await f.event("drop", transfer);
-	assert.deepEqual(f.appends, ["`/course/README` `/course/folder.pdf/` `/course/unknown`"]);
-	f.assertPathOnly();
-});
-
-test("a drop with no backing paths or no destination has a truthful notice and stages nothing", async () => {
-	const f = await fixture({ claimed: false });
-	const missing = await f.event("drop", f.transfer([f.file("virtual.pdf")]));
-	assert.equal(missing.defaultPrevented, true);
-	assert.match(f.status, /No local file paths were available/);
-	await f.event("drop", f.transfer([f.file("valid.pdf", "/existing/valid.pdf")]));
-	assert.match(f.status, /Open a chat to attach file paths/);
-	assert.deepEqual(f.appends, []);
-	assert.equal(f.value, "readthis");
 	f.assertPathOnly();
 });
 

@@ -44,7 +44,10 @@ fence names. Do not install this build into a Community `plugins/drawing-pad/` f
   panning/release working outside the canvas. Stylus-eraser behavior is unchanged.
   No zoom or Redo.
 - Pen, whole-stroke Eraser, Undo, and Clear reuse the
-  handwriting contribution's pressure-sensitive pen/mouse mechanics. Touch is ignored.
+  handwriting contribution's pressure-sensitive pen/mouse mechanics. A finger draws
+  like a pen (the selected tool applies); a second finger turns the gesture into a
+  two-finger pan — the first finger's stroke is dropped, the camera moves, and no Undo
+  entry is added. On touch screens the tools grow to 44px targets.
   Pen, Eraser, Hand, and Undo are icon-only controls with accessible names and tooltips;
   Clear remains text. Controls form a compact top-left floating cluster, not a reserved
   toolbar row: the canvas fills the surface, and transparent gaps/padding pass pointer

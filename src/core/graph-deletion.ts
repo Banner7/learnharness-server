@@ -341,3 +341,76 @@ export function deleteNodeTraces(graphStore: GraphStore, nodeId: string): NodeDe
 		chainsRemoved: chainLines.length - outChains.length,
 	};
 }
+
+// ─── vault re-extraction ─────────────────────────────────────────────────────
+
+/**
+ * An edited vault note re-extracts as REPLACE-BUT-KEEP-IDENTITY: first
+ * detach the note's traces while every node stays in the graph, then
+ * re-extract — the auditor sees those nodes and links unchanged ideas back
+ * onto the SAME ids — then prune only the detached nodes nothing re-linked
+ * (pruneDetachedNodes). A plain re-run cannot prune: the extractor sees the
+ * note's own digest and does not re-emit what it already wrote, so "not
+ * produced this run" ≠ "gone".
+ *
+ * Detach strips the source's points from node lines (a create line stays
+ * with its identity; a link line that empties dies with its phrasings),
+ * drops chain assertions only this source made (the re-run re-asserts
+ * what still holds), and clears the source's coverage/checkpoint rows.
+ * Returns the candidates: nodes this source supported that NO other
+ * source supports. Nodes other sources back are never at risk.
+ */
+export function detachSourceTraces(graphStore: GraphStore, sourceId: string): Set<string> {
+	const nodeLines = graphStore.readNodes();
+	const chainLines = graphStore.readChains();
+	const mine = new Set<string>();
+	const elsewhere = new Set<string>();
+	for (const line of nodeLines) for (const pt of line.provenance) (pt.chatId === sourceId ? mine : elsewhere).add(line.id);
+	const candidates = new Set([...mine].filter((id) => !elsewhere.has(id)));
+	const chainTouched = chainLines.some((line) => line.provenance.some((pt) => pt.chatId === sourceId));
+	if (mine.size === 0 && !chainTouched) return candidates;
+
+	const seen = new Set<string>();
+	const outNodes: GraphNode[] = [];
+	for (const line of nodeLines) {
+		const first = !seen.has(line.id);
+		seen.add(line.id);
+		const points = line.provenance.filter((pt) => pt.chatId !== sourceId);
+		if (points.length === line.provenance.length) outNodes.push(line);
+		else if (points.length > 0) outNodes.push({ ...line, provenance: points });
+		else if (first) outNodes.push({ ...line, provenance: [] });
+	}
+	const outChains: GraphChain[] = [];
+	for (const line of chainLines) {
+		const points = line.provenance.filter((pt) => pt.chatId !== sourceId);
+		if (line.provenance.length > 0 && points.length === 0) continue;
+		outChains.push(points.length === line.provenance.length ? line : { ...line, provenance: points });
+	}
+	graphStore.rewriteLedgers({
+		nodes: outNodes,
+		chains: outChains,
+		coverage: graphStore.readCoverage().filter((row) => row.chatId !== sourceId),
+		checkpoints: graphStore.readCheckpoints().filter((row) => row.chatId !== sourceId),
+	});
+	return candidates;
+}
+
+/** After a SUCCESSFUL re-extraction (or when a note's record is deleted):
+ * full-death each detached candidate that is still provenance-free —
+ * nothing re-linked it, not the re-run, not a concurrent chat extraction.
+ * Returns how many nodes died. */
+export function pruneDetachedNodes(graphStore: GraphStore, candidates: ReadonlySet<string>): number {
+	if (candidates.size === 0) return 0;
+	// One ledger read finds the orphans; the loop below has no await, so no
+	// writer can re-link one between this check and its deletion.
+	const supported = new Set<string>();
+	const present = new Set<string>();
+	for (const line of graphStore.readNodes()) {
+		if (!candidates.has(line.id)) continue;
+		present.add(line.id);
+		if (line.provenance.length > 0) supported.add(line.id);
+	}
+	let removed = 0;
+	for (const id of present) if (!supported.has(id) && deleteNodeTraces(graphStore, id)) removed++;
+	return removed;
+}

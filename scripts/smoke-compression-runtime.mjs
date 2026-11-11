@@ -1,6 +1,6 @@
 /** Fake-input regression for Next's real compression/backpressure path.
  * Runs in a disposable child so zlib instrumentation cannot affect the app.
- * node scripts/smoke-compression-runtime.mjs [--standalone <dir>] [--runtime <Node/Electron>]
+ * node scripts/smoke-compression-runtime.mjs [--standalone <dir>] [--runtime <node binary>]
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -25,7 +25,7 @@ export function verifyCompressionRuntime(root, runtime = process.execPath) {
 		const result = spawnSync(runtime, [fileURLToPath(import.meta.url), "--probe", path.resolve(root)], {
 			cwd: home,
 			env: { ...env, HOME: home, USERPROFILE: home, TMPDIR: path.join(home, "tmp"), TEMP: path.join(home, "tmp"), TMP: path.join(home, "tmp"),
-				LH_DATA_DIR: path.join(home, "data"), LH_AUTH_FILE: path.join(home, "auth.json"), NODE_ENV: "production", ELECTRON_RUN_AS_NODE: "1", NEXT_TELEMETRY_DISABLED: "1" },
+				LH_DATA_DIR: path.join(home, "data"), LH_AUTH_FILE: path.join(home, "auth.json"), NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
 			encoding: "utf8", timeout: 30_000, maxBuffer: 128 * 1024,
 		});
 		assert.equal(result.error, undefined, `compression probe failed: ${result.error?.message}`);

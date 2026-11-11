@@ -1,61 +1,69 @@
 # Custom and local models
 
-LearnHarness supports **one custom OpenAI-compatible endpoint with multiple models**, including a local model server. The setup/UI builds on PR #62 by Daniel Buckner and Abhishek Thakur. Pi handles inference, message conversion, tools, streaming, and reasoning effort. [Claude Code](claude-code.md) is a separate provider.
+LearnHarness Server connects to OpenAI-compatible endpoints, including local model servers, through the `LH_CUSTOM_PROVIDERS` environment variable. There is no in-app endpoint editor. Providers are declared on the server, and their models appear in the model menus. [Claude Code](claude-code.md) is a separate provider.
 
-## Connect
+## Schema
 
-1. Open **Settings → Providers → + Add a provider → Custom endpoint**, or use the first-run provider picker.
-2. Enter the complete API base URL, such as `http://localhost:11434/v1`. LearnHarness **does not append `/v1`**. HTTP/HTTPS and private-network addresses are supported; embedded credentials, query strings, fragments, and discovery redirects are rejected.
-3. Choose **Keyless** or **API key**. Keyless ignores saved/environment custom keys. API key uses `CUSTOM_OPENAI_API_KEY`; a real environment value overrides a saved value, and the editor identifies environment ownership.
-4. Optionally enter model IDs, separated by commas or whitespace, for servers without working model discovery.
-5. Click **Connect**, then select Strong, Cheap, and Vision models.
+`LH_CUSTOM_PROVIDERS` is a JSON array. Unknown fields are rejected. The schema is defined in [`src/agent/custom-providers.ts`](../src/agent/custom-providers.ts).
 
-A key is bound to the canonical endpoint URL and authentication mode. Changing the URL requires a new effective key or explicit consent to reuse it; it is never silently forwarded. Clearing authentication selects Keyless. Use this editor—not generic key management—to change custom credentials.
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | string | Required. Lowercase letters, digits, and `-`, starting with a letter. Must be unique and must not collide with a built-in provider id. |
+| `name` | string | Optional display name; defaults to `id`. |
+| `baseUrl` | string | Required. Full API base URL, used as given (no `/v1` is appended). HTTPS, or HTTP only for `localhost`, `127.0.0.1`, or `[::1]`. No user info, query, or fragment. |
+| `apiKey` | secret | Optional. Sent as a bearer token. |
+| `headers` | object | Optional map of header name to secret. |
+| `models` | array | Required, at least one. Model ids must be unique within the provider. |
 
-Connect requests `GET <base>/models`; reported metadata wins over duplicate entered IDs. A nonfatal discovery failure can fall back to entered IDs. At the same URL, fallback preserves the previous model snapshot/pins; a different URL starts its own snapshot. **401/403, redirects, response-size, and model-count violations fail even with entered IDs.** A failed connect without fallback leaves configuration unchanged.
+A **secret** is either an inline string or `{"env": "NAME"}`, which reads environment variable `NAME` on the server at request time. Prefer the `env` form so the JSON holds no secrets.
 
-Discovery is not a continuous health or capability check. LearnHarness does not install a backend, download models, or perform custom-endpoint OAuth.
+Each model:
 
-## Budgets and reasoning
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | string | Required. Model id sent to the endpoint. |
+| `name` | string | Optional display name. |
+| `contextWindow` | positive integer | Required. Context budget used for requests and compaction. |
+| `maxTokens` | positive integer | Required. Maximum output tokens. |
+| `input` | array | `["text"]` (default) or `["text", "image"]`. |
+| `reasoning` | boolean | Default `false`. Declares reasoning support. |
+| `compat` | object | Optional: `supportsStore`, `supportsDeveloperRole`, `supportsReasoningEffort`, `supportsUsageInStreaming` (booleans), `maxTokensField` (`"max_tokens"` or `"max_completion_tokens"`). |
 
-Edit each model's pins offline:
+## Example
 
-| Setting | Resolution |
-| --- | --- |
-| Context budget | User pin → reported limit → **8192 fallback** |
-| Maximum output | User pin → reported limit → **4096 fallback** |
-| Reasoning support | User declaration → reported support |
+```sh
+LH_CUSTOM_PROVIDERS='[
+  {
+    "id": "local",
+    "name": "Local server",
+    "baseUrl": "http://localhost:11434/v1",
+    "models": [
+      { "id": "qwen3:14b", "contextWindow": 32768, "maxTokens": 8192, "reasoning": true }
+    ]
+  },
+  {
+    "id": "gateway",
+    "baseUrl": "https://llm.example.com/v1",
+    "apiKey": { "env": "GATEWAY_API_KEY" },
+    "headers": { "X-Team": "learning" },
+    "models": [
+      { "id": "vision-model", "contextWindow": 128000, "maxTokens": 16384, "input": ["text", "image"] }
+    ]
+  }
+]'
+GATEWAY_API_KEY=...
+```
 
-Positive integer token pins are accepted, including small output limits; blank removes a pin. The editor labels reported, fallback, and pinned values. **These are request/compaction budgets, not commands to resize the backend's context.** Configure the server separately and match its active limits. Reconnecting prunes pins only to the resulting model IDs.
+## Behavior
 
-Reasoning support declares a capability; it does not enable execution. The normal Pi effort picker remains available, but **Off may not disable a backend's default thinking**. There is no model-name inference, Ollama preset, thinking-map/compatibility editor, or nonstandard-header editor.
+- The variable is parsed when first used and again whenever its value changes. Invalid JSON, a schema violation, or a duplicate id raises an error that names `LH_CUSTOM_PROVIDERS`.
+- A provider counts as available only when every `{"env": ...}` secret it references is set. Values containing newlines or NUL characters are rejected.
+- Without an `apiKey` and without an `Authorization` header, no `Authorization` header is sent.
+- Only provider ids and names reach the browser. Base URLs, keys, and headers stay on the server. The Providers page shows referenced secrets masked.
+- There is no model discovery. List every model you want to use.
+- `contextWindow` and `maxTokens` are request and compaction budgets, not commands to the backend. Configure the server's own limits to match.
+- `reasoning: true` declares a capability; it does not force thinking on, and choosing Off may not disable a backend's default thinking.
+- Prices are unknown, not $0, even for a local server. See [accounting](compaction-accounting.md).
+- LearnHarness does not install backends or download models.
 
-## Images
-
-All custom models are Vision-selectable; reported image-capable models appear first. Choose a backend that actually understands images.
-
-Every custom-engine image-bearing request attempts delivery even when discovery omitted image support. This includes file reads, PDF pages, and visual previews. A request-local model allowance lets Pi encode images without changing the catalog's capability claims. Text-only servers may reject them; errors surface without silent text-only fallback. Payload delivery tests do not establish real-model image quality.
-
-## Editing, credentials, and recovery
-
-Nonsecret configuration lives in `settings.json.customProvider`; saved keys and an internal binding live in `auth.json`. Authorization requires matching binding IDs, URL, and mode. A crash between auth/settings writes leaves the provider disabled rather than sending a key to a mismatched endpoint. Keyless also needs a valid nonsecret binding but never resolves a key. Missing private storage can initialize; malformed/unreadable storage fails closed without overwrite.
-
-If authorization is interrupted, reload and explicitly reconnect. An environment key changing endpoints does not authorize a shadowed saved key for that new URL. Disconnect prevents a latent environment key from reviving the provider. These are crash/restart guards, not a power-loss/fsync transaction guarantee.
-
-Stale editor saves return **409**: reload and retry. Mutations preserve unrelated settings changes; failed edits do not claim success. Each new model operation resolves current endpoint, credentials, limits, and effort; in-flight requests keep their setup. Disconnecting/removing a model does not remap saved selections or rewrite history.
-
-Discovery limits are **15 seconds**, **8 MiB**, and **10,000 models**; configuration bodies are bounded to **64 KiB**. Desktop capability/same-origin browser checks are not multi-user authentication.
-
-## Pricing and older development configurations
-
-Prices are **unknown/unpriced**, not $0—even for a local server. Internal zero rates are Pi-required placeholders; there is no rate editor. See [accounting](compaction-accounting.md).
-
-The earlier unshipped `models.json` configuration is not read or migrated. Existing early development profiles need explicit endpoint configuration/reconnect and model reselection; files/history are not deleted or silently remapped.
-
-## Maintainer entry points
-
-- [`server/custom-provider.ts`](../src/server/custom-provider.ts): discovery/registration; [`custom-provider-http.ts`](../src/server/custom-provider-http.ts): HTTP revisions and mutation boundaries.
-- [`custom-provider-auth.ts`](../src/server/custom-provider-auth.ts) and the [binding contract](../src/core/custom-provider-auth.ts): credential authorization and restart behavior.
-- [`agent/models.ts`](../src/agent/models.ts): per-operation engine resolution and image allowance.
-
-`tests/custom-provider-*.test.*` covers fake endpoints, binding/restart failures, concurrent editing, UI, and payload delivery—not backend installation or real-model capabilities.
+Changing the variable requires restarting the server process (or recreating the container) so the new environment is visible.

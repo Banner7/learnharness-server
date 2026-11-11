@@ -69,13 +69,18 @@ export interface MenuPlacement {
  *  filter re-measure honestly) → side, fixed style, cap. Flip rule: stay
  *  on the preferred side unless it cannot show the full content AND the
  *  other side is roomier. The cap always keeps the menu inside its side's
- *  room when there is room; the floor keeps it usable when there isn't. */
+ *  room when there is room; the floor keeps it usable when there isn't.
+ *  Horizontal (phone wave): given the menu's uncapped width, the menu is
+ *  capped to the viewport minus EDGE on both sides and its left edge is
+ *  clamped inside — a wide menu aligned to a button near one edge of a
+ *  390px phone no longer runs off the other edge. */
 export function computeMenuPlacement(
 	rect: { top: number; bottom: number; left: number; right: number },
 	viewport: { width: number; height: number },
 	contentHeight: number,
 	preferredSide: MenuSide,
 	align: MenuAlign,
+	menuWidth = 0,
 ): MenuPlacement {
 	const availDown = viewport.height - EDGE - (rect.bottom + GAP);
 	const availUp = rect.top - GAP - EDGE;
@@ -91,8 +96,15 @@ export function computeMenuPlacement(
 	}
 	const avail = side === "down" ? availDown : availUp;
 	const maxHeight = Math.max(MIN_USABLE, Math.min(CAP_VH * viewport.height, avail));
-	const horizontal: Record<string, number> =
+	let horizontal: Record<string, number> =
 		align === "right" ? { right: viewport.width - rect.right } : { left: rect.left };
+	if (menuWidth > 0) {
+		const maxWidth = Math.max(0, viewport.width - 2 * EDGE);
+		const width = Math.min(menuWidth, maxWidth);
+		const wanted = align === "right" ? rect.right - width : rect.left;
+		const left = Math.min(Math.max(EDGE, wanted), viewport.width - EDGE - width);
+		horizontal = { left, maxWidth };
+	}
 	const vertical: Record<string, number> =
 		side === "down" ? { top: rect.bottom + GAP } : { bottom: viewport.height - rect.top + GAP };
 	return { side, style: { ...horizontal, ...vertical }, maxHeight };
@@ -224,17 +236,27 @@ export function MenuShell({
 	// Measure + (re)place: on mount, then on every capture-phase scroll and
 	// resize (rAF-throttled). scrollHeight keeps the flip decision honest
 	// after the content changes shape (a search filtering the list).
+	// The menu's UNCAPPED width: a capped pass measures the cap, not the
+	// content, so only a narrower-than-cap measure updates it — rotating
+	// back to a wider viewport re-places with the real width.
+	const naturalWidthRef = useRef(0);
+	const appliedCapRef = useRef(Number.POSITIVE_INFINITY);
 	useLayoutEffect(() => {
 		let raf = 0;
 		const place = () => {
 			const rect = menuAnchorRect({ getAnchorRect: getAnchorRectRef.current, anchorRef, anchorTestid }, document);
 			if (!rect || !menuRef.current) return;
+			const measured = menuRef.current.offsetWidth;
+			if (measured < appliedCapRef.current - 0.5 || naturalWidthRef.current === 0) naturalWidthRef.current = measured;
+			const viewport = { width: window.innerWidth, height: window.innerHeight };
+			appliedCapRef.current = viewport.width - 2 * EDGE;
 			const p = computeMenuPlacement(
 				rect,
-				{ width: window.innerWidth, height: window.innerHeight },
+				viewport,
 				menuRef.current.scrollHeight,
 				preferredSide,
 				align,
+				naturalWidthRef.current,
 			);
 			setPlaced(p);
 		};

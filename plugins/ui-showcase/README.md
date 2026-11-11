@@ -139,17 +139,6 @@ Unit tests use a DOM fixture and controlled UI recorder to exercise activation,
 family-local Reset, callbacks, drafts, tree state, surface ownership and cleanup.
 They do not establish native layout, keyboard, Escape or focus behavior.
 
-`npm run test:native` additionally requires built gallery files, an already built
-matching standalone host in `LH_STANDALONE`, its exact `LH_APPROVED_HOST_DIGEST`,
-`LH_POLISH_BUILD_READY=1`, local Chrome and an Electron Node runtime (checkout default
-or `LH_NODE_RUNTIME`). Read [`tests/isolated.mjs`](tests/isolated.mjs) and
-[`tests/native.mjs`](tests/native.mjs) before running this maintainer harness.
-The exported project alone does not supply that host/runtime. The harness copies
-host/package files into disposable storage and uses synthetic records and loopback
-fixtures, not real learner profiles. Do not start real speech recording, paid-provider
-calls or model generation. This is not physical Electron-window, real microphone/IME,
-installer or cross-platform acceptance.
-
 ## Source reading route
 
 - [`src/main.ts`](src/main.ts): capability checks and sidebar/native top-bar registrations.

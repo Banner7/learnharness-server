@@ -100,15 +100,14 @@ export const METER_TICK_MS = 60;
 /** Rolling history: 48 cells × 60ms ≈ 2.9s of recent loudness. */
 export const METER_CELLS = 48;
 
-/** The Deepgram key's id in the keys store (the env-var name — the Keys
- *  section's openRow state and the PUT /api/keys/:id seam). */
+/** The Deepgram key's id (the env-var name — the Providers section's
+ *  openRow deep-link target). */
 export const DEEPGRAM_KEY_ID = "DEEPGRAM_API_KEY";
 
 /** The client-authored KEYLESS line (zero-keys wave, owner 2026-09-25):
- * the token route's raw 503 message is dev-speak ("add it to auth.json
- * (desktop) or .env.local (dev)") — the surface says the short truth
- * instead. Exported for pins; the errored idle button's click recognizes
- * it and deep-links Settings → Keys → the Deepgram row. */
+ * the token route's raw 503 message is server setup detail — the surface
+ * says the short truth instead. Exported for pins; the errored idle button's
+ * click recognizes it and deep-links Settings → Providers → the Deepgram row. */
 export const DICTATION_KEYLESS = "Dictation needs a Deepgram key";
 export const DICTATION_ACTIVE_ELSEWHERE = "Dictation is active elsewhere";
 
@@ -235,9 +234,8 @@ export function rmsToMeter(rms: number): number {
 let questionTarget: ((text: string) => void | Promise<void>) | null = null;
 let composerTarget: ((text: string) => void) | null = null;
 
-/** File references use the very same default destination as dictation,
- * including claims whose dock is currently collapsed. A focused editor can
- * insert at its caret instead; callers use this only as the fallback. */
+/** Append to the very same default destination as dictation, including
+ * claims whose dock is currently collapsed. */
 export function appendToPrimaryInput(text: string): boolean {
 	const target = questionTarget ?? composerTarget;
 	if (!target) return false;

@@ -8,11 +8,11 @@ function request(headers: Record<string, string> = {}) {
 }
 const status = { state: "not-found" as const, version: null, minimumVersion: "2.1.259" };
 
+// Origin pinning (foreign, "null", forged forwarded hosts) belongs to the
+// access gate in front of every route; see web-access.test.ts.
 for (const headers of [
-	{ origin: "https://attacker.invalid" },
 	{ "sec-fetch-site": "cross-site" },
 	{ origin: "http://localhost:3000", "sec-fetch-site": "cross-site" },
-	{ origin: "null" },
 	{ "x-learnharness-claude-code": "" },
 ] as Record<string, string>[]) test(`unsafe status request ${JSON.stringify(headers)} never invokes the probe`, async () => {
 	let probes = 0;
@@ -40,7 +40,3 @@ for (const headers of [{}, { origin: "http://localhost:3000", "sec-fetch-site": 
 	assert.deepEqual(await response.json(), status);
 });
 
-test("a forged forwarded origin cannot authorize a foreign Origin header", async () => {
-	const response = await claudeCodeInstallationResponse(request({ origin: "https://attacker.invalid", "x-forwarded-host": "attacker.invalid", "x-forwarded-proto": "https" }), async () => assert.fail("must not probe"));
-	assert.equal(response.status, 403);
-});

@@ -85,13 +85,13 @@ export function PluginSidebarActions({ children }: { children: ReactNode }) {
 
 export function PluginGraphActions() {
 	const { snapshot } = usePlugins();
-	const { open } = useSidebar();
+	const { open, desktop } = useSidebar();
 	const actions = placedPluginActions(snapshot.plugins, GRAPH_CONTEXT);
 	if (!actions.length) return null;
 	// Only buttons intercept canvas input. Wheel events over a button still
 	// bubble to this scroll container; transparent gaps target the canvas.
 	return <div data-testid="plugin-graph-actions" aria-label="Plugin graph actions"
-		className={`lh-plugin-scroll lh-no-drag pointer-events-none absolute bottom-0 left-0 z-10 flex w-[3.25rem] flex-col gap-2 overflow-y-auto p-2 ${open ? "top-0" : "lh-plugin-graph-closed top-11"}`}>
+		className={`lh-plugin-scroll pointer-events-none absolute bottom-0 left-0 z-10 flex w-[3.25rem] flex-col gap-2 overflow-y-auto p-2 ${open && desktop ? "top-0" : "top-11"}`}>
 		{actions.map(item => <ActionButton key={item.key} item={item} context={GRAPH_CONTEXT} iconOnly
 			className="pointer-events-auto flex size-9 shrink-0 items-center justify-center rounded-xl border bg-card/85 text-muted-foreground shadow-lg backdrop-blur transition-colors hover:bg-accent hover:text-foreground" />)}
 	</div>;
@@ -171,7 +171,7 @@ export function PluginTopBarActions({ context, captureContext }: { context: Extr
 	}, [menuOpen, interactions]);
 
 	if (!actions.length) return null;
-	return <div ref={root} data-testid="plugin-top-bar-actions" className="lh-no-drag relative flex shrink-0 items-center gap-1">
+	return <div ref={root} data-testid="plugin-top-bar-actions" className="relative flex shrink-0 items-center gap-1">
 		{/* Off-flow intrinsic probes never create focus targets or drag-mask holes. */}
 		<div ref={probes} aria-hidden="true" className="pointer-events-none invisible fixed left-0 top-0 flex w-max gap-1">
 			{actions.map(item => <span key={item.key} className={TOP_BUTTON}><ActionIcon action={item.action} /><span className="min-w-0 truncate">{item.action.name}</span></span>)}
@@ -181,7 +181,7 @@ export function PluginTopBarActions({ context, captureContext }: { context: Extr
 			aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}
 			className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"><EllipsisIcon className="size-4" /></button></Hint>}
 		{menuOpen && excess.length > 0 && <MenuShell anchorRef={trigger} testid="plugin-top-bar-menu" onClose={(reason) => { setMenuOpen(false); if (reason === "escape") trigger.current?.focus(); return "closed"; }} preferredSide="down" align="right"
-			menuClass="lh-no-drag w-64 rounded-xl border border-border bg-popover p-1 shadow-lg">
+			menuClass="w-64 rounded-xl border border-border bg-popover p-1 shadow-lg">
 			<div role="menu" aria-label="More plugin actions">
 			{excess.map(item => <ActionButton key={item.key} item={item} context={context} captureContext={captureContext} menuItem onRun={() => setMenuOpen(false)}
 				className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground" />)}

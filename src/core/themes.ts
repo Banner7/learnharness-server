@@ -67,15 +67,38 @@ export interface ThemeFile {
 	colors: ThemeColors;
 }
 
+/** The extra semantic inks a built-in may carry beyond the 12 file colors
+ *  (grading marks, the learner's voice, the margin rule, the highlighter).
+ *  Absent = the stylesheet derives them from the theme (app/globals.css). */
+export interface ThemeExtras {
+	correct?: string;
+	wrong?: string;
+	learner?: string;
+	marginRule?: string;
+	highlight?: string;
+}
+
 /** A theme in the catalog: a preset (`builtin`) or an imported file,
  *  addressed by its slug id. */
 export interface Theme extends ThemeFile {
 	id: string;
 	builtin: boolean;
+	/** Built-ins only: inks a theme file cannot carry. */
+	extras?: ThemeExtras;
+	/** Automatic only: the theme ids it renders for a light/dark system. */
+	follows?: Record<ThemeMode, string>;
 }
 
+/** The pair the app ships as its own look (phone wave): Kanagawa Kasumi. */
+export const KASUMI_LIGHT_ID = "kanagawa-kasumi-sand";
+export const KASUMI_DARK_ID = "kanagawa-kasumi-ink";
+/** Automatic: follows the system's light/dark preference across the
+ *  Kasumi pair. */
+export const AUTOMATIC_THEME_ID = "automatic";
 /** The theme a record without `appearance.theme` renders. */
-export const DEFAULT_THEME_ID = "default";
+export const DEFAULT_THEME_ID = AUTOMATIC_THEME_ID;
+/** The original dark palette's id (kept so saved records still resolve). */
+export const CLASSIC_THEME_ID = "default";
 
 /** #rgb / #rrggbb (case-insensitive). Mirrors settings.isHexColor without
  *  importing it (settings.ts imports this module's types). */
@@ -125,12 +148,30 @@ export function isThemeId(value: unknown): value is string {
 	return typeof value === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) && value.length <= 64;
 }
 
-function builtin(name: string, mode: ThemeMode, c: ThemeColors): Theme {
-	return { id: themeIdFromName(name), name, mode, colors: c, builtin: true };
+function builtin(name: string, mode: ThemeMode, c: ThemeColors, extras?: ThemeExtras): Theme {
+	return { id: themeIdFromName(name), name, mode, colors: c, builtin: true, ...(extras ? { extras } : {}) };
 }
 
-/** The presets, in grid order. Default = the app's original dark palette
- *  (app/globals.css carries it as literals; tests pin the two equal).
+/** Kanagawa Kasumi (community palette, both modes). Light is the palette's
+ *  sand surface with ink #1a2026; its accents are darkened along their own
+ *  hues because the sand is mid-tone and the raw light accents miss 4.5:1.
+ *  Dark uses the palette as published. The accent is the terracotta
+ *  primary; the learner ink is the palette's blue. */
+const KASUMI_SAND = builtin("Kanagawa Kasumi Sand", "light", {
+	background: "#d9d1ba", surface: "#e4decb", border: "#9e9783", text: "#1a2026", textMuted: "#3f4952",
+	accent: "#6e4a37", bold: "#1a2026", italic: "#1a2026", code: "#6e4a37",
+	error: "#843b3b", success: "#4a5840", warning: "#6b5020",
+}, { correct: "#4a5840", wrong: "#843b3b", learner: "#3e5462", marginRule: "#843b3b", highlight: "#e8c9a8" });
+const KASUMI_INK = builtin("Kanagawa Kasumi Ink", "dark", {
+	background: "#1a2026", surface: "#20272e", border: "#313c47", text: "#d9d1ba", textMuted: "#9aa2a3",
+	accent: "#d9a78b", bold: "#d9d1ba", italic: "#d9d1ba", code: "#d9a78b",
+	error: "#d96c6c", success: "#8ba37a", warning: "#c4b28a",
+}, { correct: "#8ba37a", wrong: "#d96c6c", learner: "#7794a6", marginRule: "#d96c6c", highlight: "#4a3d33" });
+
+/** The presets, in grid order. Automatic (the default) renders Kasumi Sand
+ *  or Ink by the system preference; its catalog colors are Sand's
+ *  (app/globals.css carries them as literals; tests pin the two equal).
+ *  Classic Dark = the app's original dark palette.
  *  Catppuccin: base/surface0/surface1, mauve accent, lavender/pink/peach
  *  emphasis; Latte takes mantle/surface0 instead, because surface0 on a
  *  light page reads as a heavy gray slab, and Frappé's bold is flamingo
@@ -143,8 +184,16 @@ function builtin(name: string, mode: ThemeMode, c: ThemeColors): Theme {
  *  onedark. */
 export const BUILTIN_THEMES: readonly Theme[] = [
 	{
-		id: DEFAULT_THEME_ID,
-		name: "Default",
+		...KASUMI_SAND,
+		id: AUTOMATIC_THEME_ID,
+		name: "Automatic",
+		follows: { light: KASUMI_LIGHT_ID, dark: KASUMI_DARK_ID },
+	},
+	KASUMI_SAND,
+	KASUMI_INK,
+	{
+		id: CLASSIC_THEME_ID,
+		name: "Classic Dark",
 		mode: "dark",
 		builtin: true,
 		colors: {
@@ -205,7 +254,7 @@ export const BUILTIN_THEMES: readonly Theme[] = [
 	}),
 ];
 
-/** The app's original dark palette, and the fallback for a missing id. */
+/** Automatic, and the fallback for a missing id. */
 export const DEFAULT_THEME: Theme = BUILTIN_THEMES[0]!;
 
 /** Preset ids are reserved: imports never take them, DELETE refuses them. */
@@ -214,10 +263,18 @@ export function isBuiltinThemeId(id: string): boolean {
 }
 
 /** The active theme: the record's id among builtins and customs, or
- *  Default when the id is absent or its file is gone. */
-export function resolveTheme(id: string | null | undefined, customs: readonly Theme[] = []): Theme {
-	if (!id) return DEFAULT_THEME;
-	return BUILTIN_THEMES.find((t) => t.id === id) ?? customs.find((t) => t.id === id) ?? DEFAULT_THEME;
+ *  Automatic when the id is absent or its file is gone. Automatic comes
+ *  back as the theme it renders for `system` (light when unknown, e.g. on
+ *  the server) but keeps its own id, name and `follows`. */
+export function resolveTheme(
+	id: string | null | undefined,
+	customs: readonly Theme[] = [],
+	system: ThemeMode = "light",
+): Theme {
+	const found = (id && (BUILTIN_THEMES.find((t) => t.id === id) ?? customs.find((t) => t.id === id))) || DEFAULT_THEME;
+	if (!found.follows) return found;
+	const rendered = BUILTIN_THEMES.find((t) => t.id === found.follows![system]) ?? KASUMI_SAND;
+	return { ...rendered, id: found.id, name: found.name, follows: found.follows };
 }
 
 /** The single place the two override homes merge onto the theme: the
@@ -252,7 +309,17 @@ const HOVER_STEP = 14;
  *  `--accent` stays the shadcn HOVER surface (derived from `surface`, so
  *  hovers never turn the highlight color); the theme's accent is
  *  `--lh-accent` (ring, toggles, the selected theme card). */
-export function themeVars(c: ThemeColors, mode: ThemeMode): Record<string, string> {
+export function themeVars(c: ThemeColors, mode: ThemeMode, extras?: ThemeExtras): Record<string, string> {
+	const vars = themeColorVars(c, mode);
+	if (extras?.correct) vars["--correct"] = extras.correct;
+	if (extras?.wrong) vars["--wrong"] = extras.wrong;
+	if (extras?.learner) vars["--learner"] = extras.learner;
+	if (extras?.marginRule) vars["--margin-rule"] = extras.marginRule;
+	if (extras?.highlight) vars["--highlight"] = extras.highlight;
+	return vars;
+}
+
+function themeColorVars(c: ThemeColors, mode: ThemeMode): Record<string, string> {
 	return {
 		"--background": c.background,
 		"--foreground": c.text,
@@ -285,6 +352,9 @@ export function themeVars(c: ThemeColors, mode: ThemeMode): Record<string, strin
 
 /** Export: the active theme with every override applied — importing the
  *  file back reproduces exactly what is on screen. */
-export function exportThemeFile(theme: ThemeFile, appearance: AppearanceSettings | undefined): ThemeFile {
-	return { name: theme.name, mode: theme.mode, colors: effectiveColors(theme, appearance) };
+export function exportThemeFile(theme: Theme | ThemeFile, appearance: AppearanceSettings | undefined): ThemeFile {
+	// Automatic exports the theme it is rendering: "Automatic" is a reserved id.
+	const follows = "follows" in theme ? theme.follows : undefined;
+	const name = follows ? (BUILTIN_THEMES.find((t) => t.id === follows[theme.mode])?.name ?? theme.name) : theme.name;
+	return { name, mode: theme.mode, colors: effectiveColors(theme, appearance) };
 }

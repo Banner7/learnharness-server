@@ -4,7 +4,7 @@
  * The real onPayload hook throws a unique sentinel BEFORE SDK request dispatch.
  * All file modules must resolve inside the payload, including nested dependencies.
  *
- * node scripts/smoke-provider-runtime.mjs [--standalone <dir>] [--runtime <Node/Electron>]
+ * node scripts/smoke-provider-runtime.mjs [--standalone <dir>] [--runtime <node binary>]
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -22,7 +22,7 @@ export function verifyProviderRuntime(standalone, runtime = process.execPath) {
 		fs.writeFileSync(path.join(home, "auth.json"), "{}\n", { mode: 0o600 });
 		const result = spawnSync(runtime, [fileURLToPath(import.meta.url), "--probe", path.resolve(standalone)], {
 			cwd: home,
-			env: { ...probeEnv(process.env, home), ELECTRON_RUN_AS_NODE: "1" },
+			env: probeEnv(process.env, home),
 			encoding: "utf8", timeout: 30_000, maxBuffer: 128 * 1024,
 		});
 		if (result.status !== 0 || result.error) {
@@ -80,8 +80,7 @@ async function probe(standalone) {
 		// factories, never the checkout's module or a direct/fake Google adapter.
 		const entry = pathToFileURL(path.join(root, "node_modules/@earendil-works/pi-ai/dist/index.js"));
 		const { createModels } = await import(entry.href);
-		// Keep every native chat implementation evaluable in the standalone
-		// payload even though the custom-provider UI intentionally exposes one API.
+		// Keep every native chat implementation evaluable in the standalone payload.
 		for (const api of ["anthropic-messages", "openai-completions", "openai-responses", "openai-codex-responses", "azure-openai-responses", "google-generative-ai", "google-vertex", "bedrock-converse-stream", "mistral-conversations", "pi-messages"]) {
 			const implementation = await import(new URL(`api/${api}.js`, entry).href);
 			assert.equal(typeof implementation.streamSimple, "function", `${api}: native implementation missing`);

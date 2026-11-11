@@ -116,7 +116,6 @@ for (const page of pages) it(`${page.name}: covers page content but not native c
 	const originalClass = body.className;
 	if (page.floating) {
 		const shell = header.parentElement!;
-		assert.ok(shell.firstElementChild?.classList.contains("lh-drag"), "window drag mask remains first");
 		const orderedElements = [...shell.querySelectorAll("*")];
 		assert.ok(orderedElements.indexOf(body) < orderedElements.indexOf(header), "floating chrome follows body and surface region in DOM order");
 	}

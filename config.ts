@@ -5,14 +5,11 @@ import { fileURLToPath } from "node:url";
 export const ROOT = path.dirname(fileURLToPath(import.meta.url));
 
 /**
- * THE data-location seam (the Electron contract, 2026-09-17): LH_DATA_DIR
- * relocates every MUTABLE record — chat sessions, graph ledgers, the
- * embedding model cache — when set. The desktop shell points it at
- * userData so nothing is written inside the read-only .app bundle
- * (macOS translocation guarantees the bundle is read-only anyway).
- * Unset (plain web dev / repo work) it resolves to the repo's data/,
- * byte-for-byte as before. Read-only assets (prompts) stay ROOT-anchored
- * on purpose: they ship inside the app bundle by design.
+ * THE data-location seam: LH_DATA_DIR relocates every MUTABLE record —
+ * chat sessions, graph ledgers, the embedding model cache — when set
+ * (`/data` in the Docker image). Unset (dev / repo work) it resolves to
+ * the repo's data/. Read-only assets (prompts) stay ROOT-anchored on
+ * purpose: they ship with the server build.
  */
 // Mutable runtime paths are not deployment assets. Turbopack analyzes each
 // path-producing call independently, so derived paths need their own opt-out.
@@ -141,18 +138,14 @@ export const PROMPTS_OVERRIDE_DIR = path.join(/* turbopackIgnore: true */ DATA_R
 export const THEMES_DIR = path.join(/* turbopackIgnore: true */ DATA_ROOT, "themes");
 
 /**
- * THE AUTH/KEY STORE (auth-keys wave, 2026-09-19): BYOK provider keys in a
- * flat {VAR: value} JSON map — the SAME file the Electron app has always
- * hand-edited (owner decision: option A, zero migration). Desktop main.cjs
- * passes LH_AUTH_FILE pointing at userData/auth.json (mode 0600); in dev
- * (no Electron) the default is the repo-root auth.json (gitignored, same
- * pattern as .env.local — a worktree may symlink it to the master copy).
- * The SERVER reads/writes this file directly at call time (no restart to
- * change a key); it reflects the values into process.env at boot with
- * FILL-GAP precedence — real environment variables (incl. .env.local in
- * dev) always win (src/server/keys.ts). Hand-edits still work: the file is
- * re-read from disk on every API access. Secrets NEVER go in settings.json
- * — this file keeps that role, alongside .env.local.
+ * THE AUTH/KEY STORE: provider keys in a flat {VAR: value} JSON map. The
+ * server only reads it; LH_AUTH_FILE points at it (`/secrets/auth.json` in
+ * the Docker image), and in dev the default is the repo-root auth.json
+ * (gitignored, same pattern as .env.local). Its values are mirrored into
+ * process.env with FILL-GAP precedence — real environment variables (incl.
+ * .env.local in dev) always win — and the mirror is re-synced from disk on
+ * each key read, so hand edits take effect without a restart
+ * (src/server/keys.ts). Secrets NEVER go in settings.json.
  */
 export const AUTH_FILE = process.env.LH_AUTH_FILE
 	? path.resolve(/* turbopackIgnore: true */ process.env.LH_AUTH_FILE)

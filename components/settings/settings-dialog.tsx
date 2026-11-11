@@ -13,8 +13,10 @@
  *   Lucide icons for the built-in sections; active = bg-accent. Icons
  *   inherit the row's color, without a separate palette.
  * - The dialog is surface-agnostic by construction: the sections talk to
- *   /api/settings* and localStorage only, so this shell can be re-mounted
- *   as a true OS window in the Electron round with near-zero churn.
+ *   /api/settings* and localStorage only.
+ * - Phone wave: below the sm breakpoint the dialog is a full-screen sheet
+ *   with two levels — the section list, then one section with a back
+ *   button — inside the safe areas.
  *
  * The record + the single `write` seam moved here from the thin page:
  * one record instance for the whole dialog, sections write through it,
@@ -33,7 +35,7 @@ import {
 	type ReactNode,
 	type RefObject,
 } from "react";
-import { BotIcon, KeyIcon, KeyboardIcon, PaletteIcon, PlugIcon, PuzzleIcon, SettingsIcon, WaypointsIcon, type LucideIcon } from "lucide-react";
+import { BotIcon, ChevronLeftIcon, KeyIcon, KeyboardIcon, LibraryIcon, PaletteIcon, PlugIcon, PuzzleIcon, SettingsIcon, WaypointsIcon, type LucideIcon } from "lucide-react";
 import { HostDialog } from "@/components/host-dialog";
 import { useInteractionLayers, type CloseOutcome } from "@/components/interaction-layers";
 import {
@@ -46,7 +48,7 @@ import {
 } from "@/src/core";
 import { useAppearance } from "./appearance.tsx";
 import { SettingsSection } from "./controls.tsx";
-import { UpdateSettings } from "./update-settings.tsx";
+import { VersionSettings } from "./version-settings.tsx";
 import { AgentSection } from "./agent-section.tsx";
 import type { ModelsSettings } from "@/src/core";
 import { MENU_CLOSE_EVENT, MENU_OPEN_EVENT } from "@/components/menu-shell";
@@ -55,11 +57,10 @@ import { KeysSection } from "./keys-section.tsx";
 import { Hint } from "@/components/ui/hint";
 import { AppearanceSection, GraphSection } from "./appearance-section.tsx";
 import { KeyboardSection } from "./keyboard-section.tsx";
+import { LibrarySection } from "./library-section.tsx";
 import { PluginsSection } from "./plugins-section.tsx";
 import { PluginSettingsPage } from "./plugin-settings-page.tsx";
 import { usePlugins } from "@/components/plugins";
-import { ChatGPTUIProvider } from "./chatgpt-connection.tsx";
-import { NativeSubscriptionUIProvider } from "./subscription-connections.tsx";
 
 /** Owner (2026-09-20): hints earn their place — mechanics-explaining
  *  prose is out; only the keyboard note stays (storage location is a
@@ -69,6 +70,7 @@ const SECTIONS = [
 	{ id: "agent", label: "Agent", icon: BotIcon },
 	{ id: "appearance", label: "Appearance", icon: PaletteIcon },
 	{ id: "graph", label: "Graph", icon: WaypointsIcon },
+	{ id: "library", label: "Library", icon: LibraryIcon },
 	{ id: "keyboard", label: "Keyboard", icon: KeyboardIcon, hint: "Stored on this device" },
 	{ id: "general", label: "General", icon: SettingsIcon },
 ] as const;
@@ -105,6 +107,9 @@ export function SettingsDialogProvider({
 	const [show, setShow] = useState(false);
 	const [landOn, setLandOn] = useState<SectionId>("keys");
 	const [landOnRow, setLandOnRow] = useState<string | null>(null);
+	// A deep link lands IN its section on the phone sheet; a plain open
+	// shows the section list first.
+	const [landOnExplicit, setLandOnExplicit] = useState(false);
 	const [navigationRequest, setNavigationRequest] = useState(0);
 	const open = useCallback((section?: string, row?: string) => {
 		// Returning to this singleton is a bounded request, not a forced pop.
@@ -113,11 +118,11 @@ export function SettingsDialogProvider({
 		interactions.invalidateOpening();
 		setNavigationRequest(request => request + 1);
 		setLandOn(section ? section as SectionId : "keys");
+		setLandOnExplicit(section !== undefined);
 		setLandOnRow(row ?? null);
 		setShow(true);
 	}, [interactions, layerId]);
 	const close = useCallback((): CloseOutcome => { setShow(false); return "closed"; }, []);
-	useEffect(() => window.lh?.onOpenSettings?.((section) => open(section)), [open]);
 	useEffect(() => {
 		const onPluginSettings = (event: Event) => {
 			const pluginId: unknown = (event as CustomEvent<unknown>).detail;
@@ -127,12 +132,12 @@ export function SettingsDialogProvider({
 		return () => window.removeEventListener("lh:open-plugin-settings", onPluginSettings);
 	}, [open]);
 	return (
-		<ChatGPTUIProvider><NativeSubscriptionUIProvider><WriteOrderContext.Provider value={writeOrder}><DialogContext.Provider value={{ open }}>
+		<WriteOrderContext.Provider value={writeOrder}><DialogContext.Provider value={{ open }}>
 			{children}
 			{show && (
-				<SettingsDialog onClose={close} initialSection={landOn} initialRow={landOnRow} navigationRequest={navigationRequest} layerId={layerId} />
+				<SettingsDialog onClose={close} initialSection={landOn} initialRow={landOnRow} initialSectionExplicit={landOnExplicit} navigationRequest={navigationRequest} layerId={layerId} />
 			)}
-		</DialogContext.Provider></WriteOrderContext.Provider></NativeSubscriptionUIProvider></ChatGPTUIProvider>
+		</DialogContext.Provider></WriteOrderContext.Provider>
 	);
 }
 
@@ -144,11 +149,13 @@ function SettingsDialog({
 	onClose,
 	initialSection,
 	initialRow,
+	initialSectionExplicit,
 	navigationRequest,
 	layerId,
 }: {
 	onClose: () => CloseOutcome;
 	initialSection: SectionId;
+	initialSectionExplicit: boolean;
 	navigationRequest: number;
 	layerId: string;
 	/** The keys-section row to unfold (see DialogContext above). */
@@ -157,7 +164,7 @@ function SettingsDialog({
 	// Keep the original visual frame and plain dim backdrop. The shared
 	// untransformed boundary also contains this modal's portaled menus.
 	return <SettingsDialogBody onClose={onClose} initialSection={initialSection}
-		initialRow={initialRow} navigationRequest={navigationRequest}
+		initialRow={initialRow} initialSectionExplicit={initialSectionExplicit} navigationRequest={navigationRequest}
 		renderFrame={frame => <HostDialog open layerId={layerId} ownerId={null}
 			onClose={onClose} frame={frame} aria-label="Settings"
 			backdropProps={{
@@ -172,6 +179,7 @@ export function SettingsDialogBody({
 	onClose,
 	initialSection = "keys",
 	initialRow = null,
+	initialSectionExplicit = true,
 	navigationRequest = 0,
 	renderFrame,
 }: {
@@ -179,6 +187,8 @@ export function SettingsDialogBody({
 	/** The runtime supplies the shared modal shell; standalone SSR retains the frame. */
 	renderFrame?: (frame: ReactElement<{ children: ReactNode }>) => ReactNode;
 	initialSection?: SectionId;
+	/** The phone sheet opens on the section itself (true) or the list. */
+	initialSectionExplicit?: boolean;
 	/** Repeated opens must retarget even when the requested section is unchanged. */
 	navigationRequest?: number;
 	/** The keys row to unfold on arrival (null = none). While-open
@@ -228,6 +238,8 @@ export function SettingsDialogBody({
 		};
 	}, []);
 	const [active, setActive] = useState<SectionId>(initialSection);
+	// The phone sheet's level: the section list, or one section.
+	const [phoneSection, setPhoneSection] = useState(initialSectionExplicit);
 	// A deep-link fired while the dialog is ALREADY open (first exercised by
 	// the wave-6 embedding picker's "Add a provider key first…" link — the
 	// picker itself died with wave 7, the mechanism is general) changes
@@ -235,7 +247,12 @@ export function SettingsDialogBody({
 	// nothing.
 	useEffect(() => {
 		setActive(initialSection);
-	}, [initialSection, navigationRequest]);
+		setPhoneSection(initialSectionExplicit);
+	}, [initialSection, initialSectionExplicit, navigationRequest]);
+	const openSection = useCallback((id: SectionId) => {
+		setActive(id);
+		setPhoneSection(true);
+	}, []);
 
 	const enabledPlugins = snapshot.plugins.filter(plugin => plugin.info.enabled);
 	const activePluginId = active.startsWith("plugin:") ? active.slice("plugin:".length) : null;
@@ -295,7 +312,7 @@ export function SettingsDialogBody({
 	 *  schema mistake caught by the validation surface). */
 	const write = useCallback(
 		async (
-			section: "general" | "agent" | "models" | "appearance" | "graph" | "compaction",
+			section: "agent" | "models" | "appearance" | "graph" | "compaction",
 			body: object,
 		): Promise<boolean> => {
 			const ticket = ++writeOrder.current.issued;
@@ -348,12 +365,31 @@ export function SettingsDialogBody({
 			aria-modal="true"
 			aria-label="Settings"
 			data-testid="settings-dialog"
-			className="settings-dialog-pop flex h-[620px] max-h-[85vh] w-[920px] max-w-[90vw] flex-col overflow-hidden rounded-md border border-border bg-card shadow-xl"
+			className="settings-dialog-pop flex h-[620px] max-h-[85vh] w-[920px] max-w-[90vw] flex-col overflow-hidden rounded-md border border-border bg-card shadow-xl max-sm:h-dvh max-sm:max-h-dvh max-sm:w-full max-sm:max-w-full max-sm:rounded-none max-sm:border-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-[env(safe-area-inset-bottom)]"
 			onClick={(e) => e.stopPropagation()}
 		>
-			{/* Header — the app's quiet CMU title language. */}
-			<header className="flex h-15 shrink-0 items-center gap-3 border-b border-border px-5">
-				<h2 className="font-title text-2xl tracking-tight">Settings</h2>
+			{/* Header — the app's quiet CMU title language. On the phone
+			    sheet's section level, a back button returns to the list. */}
+			<header className="flex h-15 shrink-0 items-center gap-3 border-b border-border px-5 max-sm:px-3">
+				{phoneSection && (
+					<button
+						type="button"
+						aria-label="All settings"
+						data-testid="settings-back"
+						onClick={() => setPhoneSection(false)}
+						className="-ml-1 flex size-11 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:hidden"
+					>
+						<ChevronLeftIcon aria-hidden="true" className="size-5" />
+					</button>
+				)}
+				<h2 className="min-w-0 truncate font-title text-2xl tracking-tight">
+					{phoneSection ? (
+						<>
+							<span className="sm:hidden">{navSections.find((s) => s.id === selected)?.label ?? "Settings"}</span>
+							<span className="max-sm:hidden">Settings</span>
+						</>
+					) : "Settings"}
+				</h2>
 				<Hint
 						// Esc closes through the shared interaction owner.
 						label="Close"
@@ -364,7 +400,7 @@ export function SettingsDialogBody({
 					type="button"
 					aria-label="Close settings"
 					data-testid="settings-close"
-					className="ml-auto size-7 rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					className="ml-auto size-7 rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-sm:size-11"
 					onClick={onClose}
 				>
 					<svg
@@ -386,7 +422,7 @@ export function SettingsDialogBody({
 				<nav
 					aria-label="Settings sections"
 					data-testid="settings-nav"
-					className="flex min-h-0 w-48 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border p-2"
+					className={`flex min-h-0 w-48 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border p-2 max-sm:w-full max-sm:border-r-0 ${phoneSection ? "max-sm:hidden" : ""}`}
 				>
 					{navSections.map((s, index) => (
 						<div key={s.id} className="shrink-0">
@@ -395,12 +431,12 @@ export function SettingsDialogBody({
 								type="button"
 								data-testid={`settings-nav-${s.id}`}
 								aria-current={selected === s.id}
-								className={`flex w-full items-center gap-2 break-words rounded-sm px-3 py-1.5 text-left font-ui text-sm transition-colors ${
+								className={`flex w-full items-center gap-2 break-words rounded-sm px-3 py-1.5 text-left font-ui text-sm transition-colors max-sm:min-h-11 max-sm:text-base ${
 									selected === s.id
 										? "bg-accent text-foreground"
 										: "text-muted-foreground hover:bg-accent hover:text-foreground"
 								}`}
-								onClick={() => setActive(s.id)}
+								onClick={() => openSection(s.id)}
 							>
 								{s.icon && <s.icon aria-hidden="true" focusable="false" className="size-3.5 shrink-0" />}
 								<span className="min-w-0">{s.label}</span>
@@ -418,7 +454,7 @@ export function SettingsDialogBody({
 				    nothing may shift when the lock engages. */}
 				<div
 					ref={contentRef}
-					className="min-w-0 flex-1 overflow-y-auto"
+					className={`min-w-0 flex-1 overflow-y-auto ${phoneSection ? "" : "max-sm:hidden"}`}
 					data-testid="settings-content"
 				>
 					{error && !activePluginId && selected !== "plugins" && selected !== "core-plugins" && (
@@ -430,7 +466,7 @@ export function SettingsDialogBody({
 							{error}
 						</p>
 					)}
-					{selected === "plugins" || selected === "core-plugins" ? <PluginsSection origin={selected === "core-plugins" ? "core" : "community"} onOpenSettings={pluginId => setActive(`plugin:${pluginId}`)} />
+					{selected === "plugins" || selected === "core-plugins" ? <PluginsSection origin={selected === "core-plugins" ? "core" : "community"} onOpenSettings={pluginId => openSection(`plugin:${pluginId}`)} />
 						: activePlugin ? <PluginSettingsPage key={`${activePlugin.info.id}/${activePlugin.info.revision}`} plugin={activePlugin} />
 							: activePluginId !== null ? <p role="status" className="px-6 py-5 text-xs text-muted-foreground">Loading plugins…</p>
 								: record === undefined ? (
@@ -448,12 +484,7 @@ export function SettingsDialogBody({
 									title="General"
 									testid="section-general"
 								>
-									<UpdateSettings
-										autoUpdate={record.general?.autoUpdate ?? true}
-										onAutoUpdateChange={(on) =>
-											void write("general", { ...record.general, autoUpdate: on })
-										}
-									/>
+									<VersionSettings />
 								</SettingsSection>
 							)}
 							{active === "keys" && (
@@ -508,6 +539,11 @@ export function SettingsDialogBody({
 											write("graph", next)
 										}
 									/>
+								</SettingsSection>
+							)}
+							{active === "library" && (
+								<SettingsSection title="Library" testid="section-library">
+									<LibrarySection />
 								</SettingsSection>
 							)}
 							{active === "keyboard" && (

@@ -1,0 +1,52 @@
+# Example deployment template. Copy this to a private compose.yml (or
+# deploy/compose.yml) and fill in the secrets in secrets/runtime.env before
+# starting. Publish the port loopback-only and put an authenticated reverse
+# proxy / Tailscale Serve in front of it; the app's access gate stays
+# fail-closed regardless.
+services:
+  learnharness:
+    build: .
+    image: learnharness:0.1.0
+    init: true
+    restart: unless-stopped
+    ports:
+      # Loopback-only: only a proxy/Tailscale Serve on this host may reach it.
+      - "127.0.0.1:${LH_HOST_PORT:-3000}:3000"
+    env_file:
+      # Holds LH_WEB_ORIGIN, LH_WEB_ACCESS_TOKEN, LH_TAILSCALE_USERS,
+      # LH_CUSTOM_PROVIDERS, provider API keys, CLAUDE_CODE_OAUTH_TOKEN, etc.
+      - ./secrets/runtime.env
+    environment:
+      LH_DATA_DIR: /data
+      LH_AUTH_FILE: /secrets/auth.json
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    volumes:
+      - ./data:/data
+      # Optional provider key map, read-only. Omit this line (and the file)
+      # when every key lives in secrets/runtime.env. runtime.env itself is
+      # read by compose via env_file and is never mounted into the container.
+      - ./secrets/auth.json:/secrets/auth.json:ro
+      # Claude Code CLI state (CLAUDE_CONFIG_DIR); must be owned by uid 1000.
+      - ./claude:/claude
+      # Optional vault library: a Markdown notes folder, read-only. Set
+      # LH_VAULT_DIR=/vault in secrets/runtime.env to follow it.
+      # - /path/to/notes:/vault:ro
+    healthcheck:
+      # Liveness only: the fail-closed gate answers unauthenticated requests
+      # with an HTTP error, so "any HTTP response" means the server is up.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          'fetch("http://127.0.0.1:"+(process.env.PORT||"3000")+"/").then(()=>process.exit(0)).catch(()=>process.exit(1))',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

@@ -14,13 +14,11 @@
  * there's no point presenting the model picker before the user has set a
  * key because there are no models to pick then"):
  *   Unknown catalog — neutral loading (or error/Retry), never a key screen.
- *   Stage 1 — no keyed provider or saved selection: a SELF-CONTAINED first-key screen
- *     (zero-keys wave, owner 2026-09-25): provider picker + one key
- *     input + save via PUT /api/keys/:id. The dialog STAYS MOUNTED —
- *     saving dispatches the "keys" signal, the fetch effect re-runs on
- *     it, and the stage flips to the pickers on its own. No Settings
- *     round-trip anymore; the draft lives in the caller's state,
- *     untouched throughout.
+ *   Stage 1 — no keyed provider or saved selection: a read-only status
+ *     screen. Credentials live only in the server environment, so the
+ *     dialog explains that and offers "Check again", which refetches the
+ *     catalog; the stage flips to the pickers on its own once a provider
+ *     is configured. The draft lives in the caller's state throughout.
  *   Stage 2 — Strong → Cheap → Vision pickers over the FEDERATED catalog
  *     (keyed providers only), the vision slot filtered to image-capable
  *     models, in the app's shared dropdown language (ModelMenuList).
@@ -39,19 +37,14 @@
 import { useEffect, useRef, useState } from "react";
 import { HostDialog } from "@/components/host-dialog";
 import { useInteractionLayers } from "@/components/interaction-layers";
-import type React from "react";
-import { type ModelCatalogEntry, type ModelSlotName, type ModelsSettings, CUSTOM_PROVIDER } from "@/src/core";
+import { type ModelCatalogEntry, type ModelSlotName, type ModelsSettings } from "@/src/core";
 import { prettyModel } from "@/components/usage-format";
 import { ModelMenuList } from "@/components/settings/model-menu";
 import { MenuShell } from "@/components/menu-shell";
-import { notifySettingsSaved, useSettingsSaved } from "@/components/settings-signal";
+import { notifySettingsSaved } from "@/components/settings-signal";
 import { useModelCatalog } from "@/components/model-catalog";
 import { savedSlotsConfigured } from "@/components/setup-cta";
 import { Hint } from "@/components/ui/hint";
-import { type ProviderKeyInfo, CUSTOM_PROVIDER_INFO, CustomEndpointSetup } from "@/components/settings/keys-section";
-import { ProviderMenuList } from "@/components/settings/model-menu";
-import { ChatGPTBackgroundAccess } from "@/components/settings/chatgpt-connection";
-import { NativeSubscriptionBackgroundAccess, SubscriptionConnections } from "@/components/settings/subscription-connections";
 import { defaultOrderLevel, populateLevel, THINKING_LABEL } from "@/components/thinking-default";
 import { ThinkingMenuList } from "@/components/settings/model-menu";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
@@ -115,120 +108,25 @@ export function prefillLevelFromPin(
 	return populateLevel(pin?.thinkingLevel, entry.supportedLevels);
 }
 
-/** Stage 1's pure body — exported for SSR pins (the delete/settings
- *  body pattern). The wrapper owns state + effects + the portal.
- *
- * The first-key screen (owner, zero-keys wave): provider picker (the
- * app's shared dropdown language, ProviderMenuList), one paste input,
- * Save. A save that 400s keeps the line inline (the keys section's
- * shape-gates write user-facing error text). */
-export function SetupKeysBody({
-	providers,
-	provider,
-	value,
-	saving,
-	error,
-	menuOpen,
-	onToggleMenu,
-	onCloseMenu,
-	onPick,
-	onValue,
-	onSave,
-	menuAnchor,
-	isCustom,
-	onCustomSaved,
-}: {
-	/** The full provider roster (GET /api/keys providers) — undefined
-	 *  while it loads; the picker renders an honest empty state then. */
-	providers: ProviderKeyInfo[] | undefined;
-	/** The chosen provider; null = the picker trigger reads "Pick a
-	 *  provider…". */
-	provider: ProviderKeyInfo | null;
-	value: string;
-	saving: boolean;
-	error: string | null;
-	menuOpen: boolean;
-	onToggleMenu: () => void;
-	onCloseMenu?: () => void;
-	onPick: (p: ProviderKeyInfo) => void;
-	onValue: (v: string) => void;
-	onSave: () => void;
-	/** The MenuShell anchor — wired by the wrapper (its triggerRef). */
-	menuAnchor: React.RefObject<HTMLDivElement | null>;
-	/** Chosen provider is the custom endpoint: a base URL field joins the key
-	 *  field. All three optional so plain-key callers (and tests) stay unchanged. */
-	isCustom?: boolean;
-	onCustomSaved?: () => void;
-}) {
+/** Stage 1's pure body — exported for SSR pins. Credentials are managed
+ *  on the server, so there is nothing to enter here: only the status and
+ *  a refetch. */
+export function SetupKeysBody({ onCheck }: { onCheck: () => void }) {
 	return (
 		<div className="flex flex-col gap-3 px-6 py-5" data-testid="setup-stage-keys">
 			<p className="text-xs text-muted-foreground">
-				Choose your AI provider and paste its API key. You’ll pick your models next.
+				No model provider is configured on this server yet. Add a provider key or a custom provider to the server environment, restart LearnHarness, then check again. You’ll pick your models next.
 			</p>
-			<div className="flex flex-col gap-2">
-				<div ref={menuAnchor} className="relative max-w-96">
-					<button
-						type="button"
-						aria-label="Provider"
-						data-testid="setup-key-provider"
-						aria-expanded={menuOpen}
-						onClick={onToggleMenu}
-						className="flex h-7 w-full items-center gap-1 rounded-sm border border-border bg-background px-1.5 font-ui text-xs text-foreground transition-colors hover:border-muted-foreground/50"
-					>
-						<span className="min-w-0 flex-1 truncate text-left">{provider ? provider.label : "Pick a provider…"}</span>
-						<span aria-hidden className="text-muted-foreground">
-							▾
-						</span>
-					</button>
-					{menuOpen && (
-						<MenuShell
-							anchorRef={menuAnchor}
-							testid="setup-key-provider-menu"
-							onClose={() => { onCloseMenu?.(); return "closed"; }}
-							preferredSide="down"
-							align="left"
-							menuClass="flex w-[22rem] flex-col rounded-xl border border-border bg-card p-2 text-xs shadow-xl"
-						>
-							<ProviderMenuList providers={providers ?? []} onPick={onPick} />
-						</MenuShell>
-					)}
-				</div>
-				{provider && (isCustom ? <CustomEndpointSetup onSaved={onCustomSaved ?? onSave} /> : (
-					<div className="flex max-w-96 flex-col gap-2">
-						<div className="flex items-center gap-2">
-							<input
-								type="text"
-								value={value}
-								onChange={(e) => onValue(e.target.value)}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" && value.trim()) onSave();
-								}}
-								placeholder="Paste key…"
-								aria-label={`${provider.label} key`}
-								data-testid="setup-key-input"
-								disabled={saving}
-								autoFocus
-								className="h-7 min-w-0 flex-1 rounded-sm border border-border bg-background px-1.5 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-muted-foreground/50"
-							/>
-							<button
-								type="button"
-								onClick={onSave}
-								disabled={saving || !value.trim()}
-								data-testid="setup-key-save"
-								className="shrink-0 rounded-sm border border-border bg-background px-3 py-1.5 font-ui text-xs text-foreground transition-colors hover:border-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-40"
-							>
-								{saving ? "Saving…" : "Save key"}
-							</button>
-						</div>
-					</div>
-				))}
-				{error && (
-					<p role="alert" data-testid="setup-key-error" className="text-xs text-error">
-						{error}
-					</p>
-				)}
+			<div>
+				<button
+					type="button"
+					onClick={onCheck}
+					data-testid="setup-check-again"
+					className="rounded-sm border border-border bg-background px-3 py-1.5 font-ui text-xs text-foreground transition-colors hover:border-muted-foreground/50"
+				>
+					Check again
+				</button>
 			</div>
-			<div className="mt-2 border-t border-border/60 pt-4"><h3 className="mb-3 font-ui text-xs text-muted-foreground">Subscriptions</h3><SubscriptionConnections setup /></div>
 		</div>
 	);
 }
@@ -268,38 +166,6 @@ function OpenSetupDialog({ onClose, onDone }: SetupDialogProps) {
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [openMenu, setOpenMenu] = useState<{ slot: ModelSlotName; kind: "model" | "thinking" } | null>(null);
-	// Stage 1's first-key screen (zero-keys wave): the provider roster,
-	// the chosen provider + pasted value, its busy/error pair, and its own
-	// menu-open bit (the slot menus' dismissal machinery covers it too —
-	// see the trigger testid branch below).
-	const [keyProviders, setKeyProviders] = useState<ProviderKeyInfo[] | undefined>(undefined);
-	const [keyProvider, setKeyProvider] = useState<ProviderKeyInfo | null>(null);
-	const [keyValue, setKeyValue] = useState("");
-	const [keySaving, setKeySaving] = useState(false);
-	const [keyError, setKeyError] = useState<string | null>(null);
-	const [keyMenuOpen, setKeyMenuOpen] = useState(false);
-	// Stage 1's provider-picker trigger wrapper — the shared shell's anchor.
-	// Stage 2's slot menus anchor by anchorTestid instead — see the slot
-	// MenuShell below for why a freshly attached ref cannot work there.
-	const keyTriggerRef = useRef<HTMLDivElement>(null);
-
-	// The keys signal (zero-keys wave): keys-section saves/deletes AND
-	// THIS dialog's own first-key save dispatch it; the fetch effect below
-	// re-runs on it, so saving a key widens the catalog. Incomplete saved
-	// slots advance to pickers; complete saved slots just close setup.
-	const [keysTick, setKeysTick] = useState(0);
-	useSettingsSaved((section) => {
-		if (section === "keys") setKeysTick((t) => t + 1);
-	});
-
-	useEffect(() => {
-		let cancelled = false;
-		fetch("/api/keys")
-			.then((r) => r.json())
-			.then((b: { providers?: ProviderKeyInfo[] }) => { if (!cancelled) setKeyProviders(b.providers ?? []); })
-			.catch(() => { if (!cancelled) setKeyProviders([]); });
-		return () => { cancelled = true; };
-	}, [keysTick]);
 
 	useEffect(() => {
 		if (!catalog) return;
@@ -339,10 +205,6 @@ function OpenSetupDialog({ onClose, onDone }: SetupDialogProps) {
 		const onPointerDown = (e: PointerEvent) => {
 			if (!(e.target instanceof Element)) return;
 			const t = e.target;
-			if (keyMenuOpen && controller.isElementEligible(document.querySelector('[data-testid="setup-key-provider-menu"]'))) {
-				if (t.closest("[data-lh-menu]") || t.closest('[data-testid="setup-key-provider"]')) return;
-				setKeyMenuOpen(false);
-			}
 			if (openMenu === null) return;
 			const menuTestid = openMenu.kind === "model" ? `setup-menu-${openMenu.slot}` : `setup-thinking-menu-${openMenu.slot}`;
 			if (!controller.isElementEligible(document.querySelector(`[data-testid="${menuTestid}"]`))) return;
@@ -353,38 +215,13 @@ function OpenSetupDialog({ onClose, onDone }: SetupDialogProps) {
 		};
 		document.addEventListener("pointerdown", onPointerDown);
 		return () => document.removeEventListener("pointerdown", onPointerDown);
-	}, [controller, openMenu, keyMenuOpen]);
+	}, [controller, openMenu]);
 
 	// Do not briefly paint model pickers between successful connection and
 	// closing an already-configured setup. No saved model/thinking writes.
 	if (closeAfterConnection) return null;
 
 	const allPicked = SLOT_ORDER.every((s) => picked[s]);
-
-	/** Stage 1's save: PUT the pasted key, dispatch the keys signal, and
-	 *  CLEAN the local key field. The fresh catalog decides whether to
-	 *  close recovery or advance to the missing model slots. Shape-gate
-	 *  400s keep their user-facing line inline. */
-	async function saveKey() {
-		if (!keyProvider || keySaving) return;
-		if (!keyValue.trim()) return;
-		setKeySaving(true);
-		setKeyError(null);
-		const res = await fetch(`/api/keys/${encodeURIComponent(keyProvider.envVar)}`, {
-						method: "PUT",
-						headers: { "content-type": "application/json" },
-						body: JSON.stringify({ value: keyValue }),
-					}).catch(() => null);
-		setKeySaving(false);
-		if (!res || !res.ok) {
-			const body = (await res?.json().catch(() => ({}))) as { error?: string } | undefined;
-			setKeyError(res ? (body?.error ?? `Save failed (${res.status})`) : "Save failed. Check your connection and try again.");
-			return;
-		}
-		setKeyProvider(null);
-		setKeyValue("");
-		notifySettingsSaved("keys");
-	}
 
 	async function save() {
 		if (!allPicked || saving) return;
@@ -414,23 +251,6 @@ function OpenSetupDialog({ onClose, onDone }: SetupDialogProps) {
 		onDone(models);
 	}
 
-	const keysBody = <SetupKeysBody
-		providers={keyProviders ? [...keyProviders, CUSTOM_PROVIDER_INFO] : undefined}
-		provider={keyProvider}
-		value={keyValue}
-		saving={keySaving}
-		error={keyError}
-		menuOpen={keyMenuOpen}
-		menuAnchor={keyTriggerRef}
-		isCustom={keyProvider?.id === CUSTOM_PROVIDER.id}
-		onCustomSaved={() => { setKeyProvider(null); notifySettingsSaved("keys"); }}
-		onToggleMenu={() => setKeyMenuOpen((v) => !v)}
-		onCloseMenu={() => setKeyMenuOpen(false)}
-		onPick={(p) => { setKeyProvider(p); setKeyMenuOpen(false); setKeyError(null); }}
-		onValue={setKeyValue}
-		onSave={() => void saveKey()}
-	/>;
-
 	return <HostDialog open onClose={() => { onClose(); return "closed"; }} aria-label="Set up your models"
 		backdropProps={{ className: "fixed inset-0 z-50 flex items-center justify-center bg-background/80", "data-testid": "setup-backdrop" }}
 		frame={<div data-testid="setup-dialog"
@@ -459,7 +279,7 @@ function OpenSetupDialog({ onClose, onDone }: SetupDialogProps) {
 				{stage === "loading" ? (
 					!failed && <p data-testid="setup-stage-loading" role="status" className="px-6 py-5 text-xs text-muted-foreground">Loading models…</p>
 				) : stage === "keys" ? (
-					<div className="flex flex-col px-6 py-5">{keysBody}</div>
+					<SetupKeysBody onCheck={refresh} />
 				) : (
 					<div className="flex flex-col gap-4 overflow-y-auto px-6 py-5" data-testid="setup-stage-pickers">
 						<p className="text-xs text-muted-foreground">
@@ -473,7 +293,7 @@ function OpenSetupDialog({ onClose, onDone }: SetupDialogProps) {
 							const levelsForEntry = metadata?.supportedLevels ?? (entry ? Object.keys(THINKING_LABEL) : []);
 							const available = catalog?.models ?? (failed ? [] : undefined);
 							const slotCatalog = slot === "vision"
-								? available?.filter((m) => m.input.includes("image") || m.provider === CUSTOM_PROVIDER.id)
+								? available?.filter((m) => m.input.includes("image"))
 								: available;
 							return (
 								<div key={slot} data-testid={`setup-slot-${slot}`} className="flex flex-col gap-1.5">
@@ -489,7 +309,6 @@ function OpenSetupDialog({ onClose, onDone }: SetupDialogProps) {
 										)}
 									</span>
 									<span className="text-xs text-muted-foreground/70">{SLOT_META[slot].roster}</span>
-									{slot !== "strong" && <><ChatGPTBackgroundAccess provider={entry?.provider} /><NativeSubscriptionBackgroundAccess provider={entry?.provider} /></>}
 									<div className="flex items-center gap-2">
 										<div className="relative flex-1">
 											<Hint label={entry ? `${entry.provider}:${entry.id}` : "Pick a model…"}>
@@ -543,7 +362,7 @@ function OpenSetupDialog({ onClose, onDone }: SetupDialogProps) {
 															}));
 															setOpenMenu(null);
 														}}
-														footer={slotCatalog && slotCatalog.length === 0 && slot === "vision" ? "No image-capable models. Add a provider key with access to a vision model." : undefined}
+														footer={slotCatalog && slotCatalog.length === 0 && slot === "vision" ? "No image-capable models. Configure a provider with access to a vision model on the server." : undefined}
 													/>
 												</MenuShell>
 											)}

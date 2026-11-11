@@ -62,7 +62,7 @@ function fixture(run: (root: string) => void) {
 	};
 	try {
 		seedAuthoringReferenceFixture(root);
-		write("package.json", JSON.stringify({ version: "9.8.7" }));
+		write("package.json", JSON.stringify({ version: "0.0.1", pluginHostVersion: "9.8.7" }));
 		write("scripts/install-plugin-local.mjs", fs.readFileSync(path.join(source, "scripts/install-plugin-local.mjs"), "utf8"));
 		write("docs/archive/plugin-implementation-history.md", "REPOSITORY_ONLY_HISTORY_SENTINEL");
 		write("LICENSE", fs.readFileSync(path.join(source, "LICENSE"), "utf8"));

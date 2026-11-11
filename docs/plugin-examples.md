@@ -243,10 +243,9 @@ Then read [`src/main.ts`](../plugins/ui-showcase/src/main.ts) for capability che
 placements, [`src/tree.ts`](../plugins/ui-showcase/src/tree.ts) for occurrence-local
 state and drafts, [`src/surfaces.ts`](../plugins/ui-showcase/src/surfaces.ts) for
 page-body/native-target and nested ownership, and
-[`src/dom.ts`](../plugins/ui-showcase/src/dom.ts) for scoped cleanup. Compare
-[`tests/fixture.ts`](../plugins/ui-showcase/tests/fixture.ts) with
-[`tests/native.mjs`](../plugins/ui-showcase/tests/native.mjs) to distinguish simulated
-callbacks from actual host UI checks.
+[`src/dom.ts`](../plugins/ui-showcase/src/dom.ts) for scoped cleanup.
+[`tests/fixture.ts`](../plugins/ui-showcase/tests/fixture.ts) simulates host callbacks;
+it does not check actual host UI.
 
 The gallery's Send/Stop controls simulate work locally. **Dictation is real when
 explicitly started**, may send audio to the configured speech provider and can incur
@@ -282,11 +281,11 @@ behavior.
 
 | Project | Plugin-only checks after prerequisite setup | Extra environment / boundary |
 | --- | --- | --- |
-| Flashcards | `npm run build`; `npm test` with its additional DOM-test prerequisite | `linkedom` is used by tests but not declared locally; the checkout supplies it. Native harness needs `puppeteer-core`, Chrome, Electron Node and a matching standalone host/digest. |
-| Coding questions | `npm run typecheck`, `npm test`, `npm run build`; `npm run test:browser` with Chrome | Unit tests launch real local Node processes. Browser host/Markdown are mocked. Native teaching harness needs a matching standalone host, Chrome and checkout macOS Electron; it is not a practice-turn check. |
-| Drawing Pad | `npm run typecheck`, `npm test`, `npm run build` | `test:browser` imports private checkout host components/assets and dependencies; the exported kit alone cannot run it. No `test:native` script. |
-| Rich code blocks | `npm run typecheck`, `npm test`, `npm run build`; `npm run test:browser` with Chrome | Browser fixture uses built bundles and real rendering libraries with a mocked host. No `test:native` script. |
-| UI Showcase | `npm run typecheck`, `npm test`, `npm run build` | Native harness needs a matching standalone host/digest, readiness flag, Chrome and Electron Node; unit UI recorders do not establish real native layout/focus. |
+| Flashcards | `npm run build`; `npm test` with its additional DOM-test prerequisite | `linkedom` is used by tests but not declared locally; the checkout supplies it. |
+| Coding questions | `npm run typecheck`, `npm test`, `npm run build`; `npm run test:browser` with Chrome | Unit tests launch real local Node processes. Browser host/Markdown are mocked. |
+| Drawing Pad | `npm run typecheck`, `npm test`, `npm run build` | `test:browser` imports private checkout host components/assets and dependencies; the exported kit alone cannot run it. |
+| Rich code blocks | `npm run typecheck`, `npm test`, `npm run build`; `npm run test:browser` with Chrome | Browser fixture uses built bundles and real rendering libraries with a mocked host. |
+| UI Showcase | `npm run typecheck`, `npm test`, `npm run build` | Unit UI recorders do not establish real native layout/focus. |
 
 The source export preserves tests for study; it does **not** promise all tests are
 standalone. Read the project's README and harness for environment variables and
@@ -298,6 +297,6 @@ projects. Native packaged-host checks require an independently supplied matching
 not just the public declaration SDK or a built plugin.
 
 Use disposable profiles, synthetic records and loopback fixtures. Plugin checks are
-not real-provider, hardware, full Electron-window, installer, cross-platform or human
+not real-provider, hardware, cross-platform or human
 functional acceptance. No dependency installation, host launch, provider request or
 verification run is implied by this map.

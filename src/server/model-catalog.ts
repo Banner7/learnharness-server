@@ -20,22 +20,13 @@
 import { clampThinkingLevel, getSupportedThinkingLevels, type Api, type Model } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { piModels } from "../agent/models.ts";
-import { customProviderAvailable } from "./custom-provider.ts";
-import { chatGPTConnected, chatGPTModel, chatGPTModels, refreshChatGPTModels } from "../agent/chatgpt-bridge.ts";
-import { NATIVE_SUBSCRIPTIONS } from "../core/contracts/subscriptions.ts";
-import { nativeSubscriptionId, nativeSubscriptionConnected, nativeSubscriptionModel, nativeSubscriptionModels, refreshSubscriptionModels } from "../agent/subscription-bridge.ts";
+import { customProviderIds, customProviderPresent, customProviderSummaries } from "../agent/custom-providers.ts";
 
-export async function refreshConnectionCatalog(provider?: string): Promise<void> {
-	await Promise.all([
-		!provider || provider === "chatgpt" ? refreshChatGPTModels(piModels().getModels("openai").filter((m): m is Model<"openai-responses"> => m.api === "openai-responses")) : Promise.resolve(),
-		!provider || nativeSubscriptionId(provider) ? refreshSubscriptionModels() : Promise.resolve(),
-	]);
-}
-function connectionModel(provider: string, id: string): Model<Api> | undefined {
+function catalogModel(provider: string, id: string): Model<Api> | undefined {
 	if (provider === CLAUDE_CODE_PROVIDER && !claudeCodeAvailable()) return undefined;
-	return provider === "chatgpt" ? chatGPTModel(id) : nativeSubscriptionId(provider) ? nativeSubscriptionModel(provider, id) : piModels().getModel(provider, id);
+	return piModels().getModel(provider, id);
 }
-function connectionProviderIds(): string[] { return [...piModels().getProviders().map((p) => p.id), "chatgpt", ...NATIVE_SUBSCRIPTIONS.map((p) => p.logicalId)]; }
+function catalogProviderIds(): string[] { return piModels().getProviders().map((p) => p.id); }
 import { settingsStore } from "../store/settings.ts";
 import { effectiveSettings } from "./stores.ts";
 import { keyValue } from "./keys.ts";
@@ -49,13 +40,12 @@ import type {
 	SlotPins,
 } from "../core/contracts/models.ts";
 import type { EffectiveModelSpec, EffectiveSlot } from "../core/settings-resolution.ts";
-import { AUTH_PROVIDER_KEYS, CUSTOM_PROVIDER } from "../core/auth-keys.ts";
+import { AUTH_PROVIDER_KEYS } from "../core/auth-keys.ts";
 import { claudeCodeAvailable } from "./claude-code-config.ts";
 import { CLAUDE_CODE_PROVIDER } from "../agent/claude-code/constants.ts";
 import {
 	BACKGROUND_MODEL_ROLES,
 	MODEL_SLOTS,
-	customProviderUsable,
 	type BackgroundModelRole,
 	type ModelSlotName,
 	type ModelsSettings,
@@ -144,23 +134,18 @@ export function catalogSlots(): SlotPins {
 
 /** The providers surface (model slots wave, 2026-09-20): one row per
  *  plain-key model provider (core/auth-keys.ts's pi-ai-derived table),
- *  with keyPresent read env-wins through the keys seam, fresh per call —
- *  saving a key immediately federates the provider into the picker. */
+ *  with keyPresent read env-wins through the keys seam, fresh per call,
+ *  plus one server-managed row per LH_CUSTOM_PROVIDERS entry. No row
+ *  carries a secret; credentials are configured on the server only. */
 export function catalogProviders(): CatalogProvider[] {
 	piModels();
-	return AUTH_PROVIDER_KEYS.map((p) => ({
+	return AUTH_PROVIDER_KEYS.map((p): CatalogProvider => ({
 		id: p.id,
 		envVar: p.envVar,
 		keyPresent: keyValue(p.envVar) !== undefined,
 	})).concat([
-		{ id: "chatgpt", envVar: "", keyPresent: chatGPTConnected() },
 		{ id: CLAUDE_CODE_PROVIDER, envVar: "", keyPresent: claudeCodeAvailable() },
-		...NATIVE_SUBSCRIPTIONS.map((p) => ({ id: p.logicalId, envVar: "", keyPresent: nativeSubscriptionConnected(p.providerId) })),
-		// The custom endpoint: a row only when usable (base URL set). keyPresent
-		// reflects usability, not key presence (keyless local servers are allowed).
-		...(customProviderUsable(effectiveSettings().customProvider)
-			? [{ id: CUSTOM_PROVIDER.id, envVar: CUSTOM_PROVIDER.envVar, keyPresent: customProviderAvailable() }]
-			: []),
+		...customProviderSummaries().map((p): CatalogProvider => ({ id: p.id, name: p.name, serverManaged: true, envVar: "", keyPresent: customProviderPresent(p.id) })),
 	]).sort((a, b) => a.id.localeCompare(b.id));
 }
 
@@ -180,7 +165,7 @@ export function toModelDto(model: Model<Api>): ModelDto {
 		reasoning: model.reasoning,
 		input: [...model.input],
 		supportedLevels: getSupportedThinkingLevels(model),
-		cost: model.provider === CLAUDE_CODE_PROVIDER || model.provider === CUSTOM_PROVIDER.id ? null : {
+		cost: model.provider === CLAUDE_CODE_PROVIDER || customProviderIds().includes(model.provider) ? null : {
 			input: model.cost.input,
 			output: model.cost.output,
 			cacheRead: model.cost.cacheRead,
@@ -208,7 +193,6 @@ export function catalogContextLimits(): Map<string, number> {
 			index.set(`${provider.id}:${model.id}`, model.contextWindow);
 		}
 	}
-	for (const model of [...chatGPTModels(), ...nativeSubscriptionModels()]) index.set(`${model.provider}:${model.id}`, model.contextWindow);
 	return index;
 }
 
@@ -223,8 +207,7 @@ export function modelCatalog(): ModelCatalogResponse {
 		.filter((p) => keyed.has(p.id))
 		.flatMap((p) => piModels().getModels(p.id))
 		.map(toModelDto)
-		.sort((a, b) => (a.provider === b.provider ? a.id.localeCompare(b.id) : a.provider.localeCompare(b.provider)))
-		.concat([...chatGPTModels(), ...nativeSubscriptionModels()].map(toModelDto));
+		.sort((a, b) => (a.provider === b.provider ? a.id.localeCompare(b.id) : a.provider.localeCompare(b.provider)));
 	return {
 		models,
 		defaults: catalogDefaults(),
@@ -246,13 +229,13 @@ export type SettingsValidation =
  *    the model the picker writes against (settings.model, else config's
  *    prober/teacher pin; one controller, so the two specs share it). */
 export function validateChatSettings(settings: ChatSettings): SettingsValidation {
-	const providers = connectionProviderIds();
+	const providers = catalogProviderIds();
 	if (settings.model) {
 		const { provider, id } = settings.model;
 		if (!providers.includes(provider)) {
 			return { ok: false, error: `Unknown provider "${provider}" — configured: ${providers.join(", ")}` };
 		}
-		if (!connectionModel(provider, id)) {
+		if (!catalogModel(provider, id)) {
 			return { ok: false, error: `No model "${id}" in the ${provider} catalog` };
 		}
 	}
@@ -266,10 +249,11 @@ export function validateChatSettings(settings: ChatSettings): SettingsValidation
 }
 
 /** Validate introduced/replaced model selections, not unchanged saved pins.
- * A disconnected subscription loses its available catalog, but its stored
- * selections must not prevent repairing another slot or editing thinking.
- * Only the SAME slot's provider+id can pass through; runtime admission stays
- * separate. Callers without a stored section retain strict catalog checking. */
+ * A provider removed from the server configuration loses its catalog, but its
+ * stored selections must not prevent repairing another slot or editing
+ * thinking. Only the SAME slot's provider+id can pass through; runtime
+ * admission stays separate. Callers without a stored section retain strict
+ * catalog checking. */
 export function validateModelsSettings(settings: ModelsSettings, stored?: ModelsSettings): SettingsValidation {
 	for (const name of MODEL_SLOTS) {
 		const slot = settings[name];
@@ -283,13 +267,13 @@ export function validateModelsSettings(settings: ModelsSettings, stored?: Models
 }
 
 function validateSlotSpec(name: ModelSlotName, slot: { model?: { provider: string; id: string }; thinkingLevel?: ThinkingLevel }): SettingsValidation {
-	const providers = connectionProviderIds();
+	const providers = catalogProviderIds();
 	if (slot.model) {
 		const { provider, id } = slot.model;
 		if (!providers.includes(provider)) {
 			return { ok: false, error: `Unknown provider "${provider}" — configured: ${providers.join(", ")}` };
 		}
-		if (!connectionModel(provider, id)) {
+		if (!catalogModel(provider, id)) {
 			return { ok: false, error: `No model "${id}" in the ${provider} catalog` };
 		}
 	}
@@ -310,7 +294,7 @@ function validateSlotSpec(name: ModelSlotName, slot: { model?: { provider: strin
 /** Clamp one level against one model. Preserve the preference when metadata
  *  is unavailable for an unchanged saved pin; runtime clamps after reconnect. */
 function clampLevelFor(provider: string, id: string, level: ThinkingLevel): ThinkingLevel {
-	const model = connectionModel(provider, id);
+	const model = catalogModel(provider, id);
 	return model ? clampThinkingLevel(model, level) : level;
 }
 

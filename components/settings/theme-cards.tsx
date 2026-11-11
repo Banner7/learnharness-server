@@ -9,14 +9,16 @@
  * and four dots — surface, accent, error, success. Picking a card only
  * changes `appearance.theme`; overrides ride along untouched. Imports POST
  * the file's JSON to /api/themes (the server validates; its error shows in
- * the import card). Export downloads the ACTIVE theme with every override
- * applied — re-importing it reproduces what is on screen.
+ * the import card). Export shares (phone) or downloads the ACTIVE theme
+ * with every override applied — re-importing it reproduces what is on
+ * screen.
  */
 
 import { useRef, useState } from "react";
 import { CheckIcon, DownloadIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { exportThemeFile, type AppearanceSettings, type Theme } from "@/src/core";
+import { exportThemeFile, themeIdFromName, type AppearanceSettings, type Theme } from "@/src/core";
+import { shareOrDownload } from "@/components/share-file";
 
 /** The selected card's frame: a 2px gap in the dialog surface, then a 1px
  *  ring in the theme accent (the check by the name does the rest). */
@@ -54,14 +56,12 @@ function Preview({ theme }: { theme: Theme }) {
 	);
 }
 
-/** Save a JSON file through a transient object URL (browser + Electron). */
-function downloadJson(filename: string, data: unknown) {
-	const url = URL.createObjectURL(new Blob([`${JSON.stringify(data, null, "\t")}\n`], { type: "application/json" }));
-	const a = document.createElement("a");
-	a.href = url;
-	a.download = filename;
-	a.click();
-	URL.revokeObjectURL(url);
+/** Export the active theme as a JSON file (share sheet or download). */
+function exportTheme(theme: Theme, appearance: AppearanceSettings | undefined) {
+	const file = exportThemeFile(theme, appearance);
+	void shareOrDownload(
+		new File([`${JSON.stringify(file, null, "\t")}\n`], `${themeIdFromName(file.name)}.json`, { type: "application/json" }),
+	);
 }
 
 /** The Theme row of Settings → Appearance (see the file header). */
@@ -135,14 +135,14 @@ export function ThemeCards({
 				<button
 					type="button"
 					data-testid="theme-export"
-					onClick={() => downloadJson(`${active.id}.json`, exportThemeFile(active, appearance))}
-					className="flex h-7 shrink-0 items-center gap-2 rounded-sm border border-border bg-background px-2 font-ui text-xs text-foreground transition-colors hover:border-muted-foreground/50"
+					onClick={() => exportTheme(active, appearance)}
+					className="flex h-7 shrink-0 items-center gap-2 rounded-sm border border-border bg-background px-2 font-ui text-xs text-foreground transition-colors hover:border-muted-foreground/50 max-sm:h-11 max-sm:px-3"
 				>
 					<DownloadIcon className="size-3.5" />
 					Export JSON
 				</button>
 			</div>
-			<div className="grid grid-cols-3 gap-3">
+			<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
 				{themes.map((theme) => {
 					const selected = theme.id === active.id;
 					return (

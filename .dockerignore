@@ -1,0 +1,42 @@
+# Build-context exclusions: keep secrets and generated output out of the image
+# and out of the Docker build context. Mirrors .gitignore plus build-only dirs.
+
+node_modules
+.git
+.next
+data
+dist
+# Generated app-owned plugin packages and transactional staging.
+core-plugins
+.core-plugins-*
+# Generated offline authoring-skill download (rebuilt by the build stage).
+/public/plugin-authoring/
+
+# Local environment secrets; example templates may be committed.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Deployment state: secrets, Claude CLI state, vault notes, real compose files.
+secrets
+claude
+vault
+compose*.yml
+deploy/compose.yml
+deploy/secrets
+
+# dev auth/keys store and subscription credentials — never ship secrets.
+auth.json
+chatgpt-credentials.json*
+github-copilot-credentials.json*
+xai-credentials.json*
+
+*.log
+*.tsbuildinfo
+.DS_Store
+.fresh-data
+.memory/
+SCOPE.md
+# raw real-data import sources
+real-data-extraction/

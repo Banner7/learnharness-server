@@ -167,17 +167,6 @@ export function Home({
 
 	return (
 		<div className="relative h-dvh">
-			{/* Window-drag strip (merged chrome, owner 2026-09-17): a dedicated
-			    mask element, deliberately FIRST in the DOM. Electron's app-region
-			    mask resolves by DOM order — a no-drag element subtracts only drag
-			    regions that came EARLIER in the tree — not by z-index, so the
-			    header's old inline drag region (after <main>) re-added itself over
-			    the graph chrome row's carve-out and the buttons dragged the window.
-			    Placed first, every carved control (chrome row, node detail card,
-			    the toggle) comes later and subtracts correctly. Pure mask: it
-			    never needs to receive events — the mask routes the pixels. */}
-			<div className="lh-drag absolute inset-x-0 top-0 h-13" aria-hidden="true" />
-
 			{/* The main view — full-bleed (owner, graph-view round 1): no
 			    padding on any side; it runs from the sidebar to the right edge
 			    and from the bottom to the top, under everything else. With
@@ -209,7 +198,7 @@ export function Home({
 			    OVER the graph (no gradient: the graph runs clean under it to the
 			    bottom edge). Matches chat.tsx's DOCK geometry (max-w-[46rem]
 			    px-4) so nothing shifts when a session starts (owner). */}
-			<div className="pointer-events-none absolute inset-x-0 bottom-0 pb-5">
+			<div className="pointer-events-none absolute inset-x-0 bottom-0 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
 				<div className="pointer-events-auto mx-auto w-full max-w-[46rem] px-4">
 					{/* The pick bar (owner vision, 2026-10-04): the chain
 					    table's selection is PERSISTENT — picked
@@ -257,7 +246,6 @@ export function Home({
 							topicRef.current = value;
 							setTopic(value);
 						}}
-						defaultDropTarget
 						onKeyDown={(e) => {
 							if (!isInteractionScopeEligible(e.currentTarget, controller)) return;
 							// Esc ends dictation (the dictate decisions: click-again or
@@ -279,7 +267,7 @@ export function Home({
 						autoFocus
 						className="field-sizing-content lh-input max-h-48 min-h-10 flex-1 resize-none bg-transparent px-2.5 py-2 outline-none placeholder:text-muted-foreground"
 					/>
-					<AttachFilesButton editorRef={topicInputRef} />
+					<AttachFilesButton />
 					{/* No tooltip on the start square — the ↵ glyph is the
 					    affordance (owner, subtlety round 2026-09-25). */}
 					<button
@@ -326,9 +314,8 @@ export function Home({
 			<SurfaceRegion target={surfaceTarget} />
 			</div>
 			{/* Floating host chrome stays outside page-content coverage, after
-			    the region at the same owned-surface rank. The drag mask remains
-			    first so later controls retain their Electron no-drag carve-outs. */}
-			<header style={chromeStyle} className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2 px-3 py-2">
+			    the region at the same owned-surface rank. */}
+			<header style={chromeStyle} className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pb-2 pl-[max(0.75rem,env(safe-area-inset-left))]">
 				<div className="pointer-events-auto">
 					<SidebarToggle />
 				</div>

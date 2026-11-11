@@ -2,8 +2,7 @@
 
 Plugins are **trusted local code**, not sandboxed extensions. Backend modules run in
 LearnHarness's Node server with filesystem/network access; frontends run in the app
-page. Install only code you trust. The API does not expose provider credentials or
-relax Electron renderer isolation.
+page. Install only code you trust. The API does not expose provider credentials.
 
 This guide describes the matching source/build's API v1. API v1 can gain capabilities
 without changing its API number. Use documentation/types matching the target app, and
@@ -597,7 +596,7 @@ Check `stopReason`, not just text.
 Requests take `model` (including thinking level), native `context`, explicit
 `purpose: "user" | "background"`, optional allowlisted generation/reasoning/retry
 `options`, and signal. The host owns credentials/transport and applies existing
-subscription consent, quota and cancellation rules. `purpose` must reflect initiation,
+quota and cancellation rules. `purpose` must reflect initiation,
 not whether a view is open; do not classify automatic work as user input to evade consent.
 Custom fetch/env/headers/deferred remote work are not API options. Usage appends to
 plugin `data/usage.jsonl`, not core chat records.

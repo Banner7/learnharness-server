@@ -9,7 +9,7 @@ import type { PluginTaskError, PluginTaskOutcome, PluginTaskRecord, PluginTaskSn
 import { validatePluginInferenceOptions, validatePluginSchema } from "../core/plugin-validation.ts";
 import { accumulateJobUsage, piUsageToStep } from "../core/contracts/jobs.ts";
 import type { PiEngine } from "./models.ts";
-import { usageWasAdmitted } from "./subscription-request-cycle.ts";
+import { usageWasAdmitted } from "./usage-admission.ts";
 import { runSubagent } from "./subagents/pi-run.ts";
 
 /** Host observability only: never project prompts, inputs, transcripts or results. */

@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { AUTH_KEYS, genericProviderKeyGuard, isKnownAuthKey, maskKey, validateKeyShape } from "../src/core/auth-keys.ts";
+import { AUTH_KEYS, isKnownAuthKey, maskKey } from "../src/core/auth-keys.ts";
 
 describe("the catalog", () => {
 	it("lists the curated app-service keys (provider keys live in the provider table)", () => {
@@ -41,78 +41,6 @@ describe("the catalog", () => {
 		assert.ok(!isKnownAuthKey("OPENAI_API_KEY"), "provider vars are a separate surface");
 		assert.ok(!isKnownAuthKey("FUTURE_PLANS_TOKEN"));
 		assert.ok(!isKnownAuthKey(""));
-	});
-});
-
-describe("validateKeyShape (the 400 gate — curated keys)", () => {
-	it("Tavily: tvly- prefix required, length floor past it", () => {
-		assert.ok(validateKeyShape("TAVILY_API_KEY", "tvly-abc123def456ghi78").ok);
-		assert.ok(!validateKeyShape("TAVILY_API_KEY", "sk-or-v1-abcdefghij").ok, "wrong family");
-		assert.ok(!validateKeyShape("TAVILY_API_KEY", "tvly-").ok, "prefix alone is a truncation");
-		assert.ok(!validateKeyShape("TAVILY_API_KEY", "  ").ok, "empty fails");
-	});
-
-	it("Firecrawl: fc- prefix required, length floor past it", () => {
-		assert.ok(validateKeyShape("FIRECRAWL_API_KEY", "fc-0123456789abcdef0123456789abcdef").ok);
-		assert.ok(!validateKeyShape("FIRECRAWL_API_KEY", "tvly-abc123def456ghi78").ok, "wrong family");
-		assert.ok(!validateKeyShape("FIRECRAWL_API_KEY", "fc-").ok, "prefix alone is a truncation");
-		assert.ok(!validateKeyShape("FIRECRAWL_API_KEY", "fc-0123456789 abcdef0123").ok, "whitespace fails");
-		assert.ok(!validateKeyShape("FIRECRAWL_API_KEY", "  ").ok, "empty fails");
-	});
-
-	it("Brave: no public format — a ≥20-char truncation guard, no whitespace", () => {
-		assert.ok(validateKeyShape("BRAVE_API_KEY", "b".repeat(40)).ok);
-		assert.ok(!validateKeyShape("BRAVE_API_KEY", "b".repeat(19)).ok, "truncated paste");
-		assert.ok(!validateKeyShape("BRAVE_API_KEY", "has whitespace here").ok);
-	});
-
-	it("Deepgram: no public format — a ≥20-char truncation guard, no whitespace", () => {
-		assert.ok(validateKeyShape("DEEPGRAM_API_KEY", "a".repeat(40)).ok);
-		assert.ok(!validateKeyShape("DEEPGRAM_API_KEY", "a".repeat(19)).ok, "truncated paste");
-		assert.ok(!validateKeyShape("DEEPGRAM_API_KEY", "a b c d e f g h i j k l m n o p q r s").ok, "whitespace");
-	});
-
-	it("Exa: accepts whitespace-free keys without assuming a prefix", () => {
-		assert.ok(validateKeyShape("EXA_API_KEY", "exa-test-12345678").ok);
-		assert.ok(!validateKeyShape("EXA_API_KEY", "short").ok);
-		assert.ok(!validateKeyShape("EXA_API_KEY", "exa key with spaces").ok);
-	});
-
-	it("Ollama hosted search: ordinary key paste hygiene, not a model URL", () => {
-		assert.ok(validateKeyShape("OLLAMA_API_KEY", "  ollama-fake-key-123456  ").ok);
-		assert.ok(!validateKeyShape("OLLAMA_API_KEY", "short").ok);
-		assert.ok(!validateKeyShape("OLLAMA_API_KEY", "ollama fake key 123456").ok);
-		assert.ok(!isKnownAuthKey("OLLAMA_BASE_URL"));
-	});
-
-	it("trims surrounding paste whitespace before checking", () => {
-		assert.ok(validateKeyShape("DEEPGRAM_API_KEY", `  ${"d".repeat(40)}  `).ok);
-	});
-
-	it("unknown ids are rejected with the supported list", () => {
-		const r = validateKeyShape("SOMETHING_ELSE", "whatever");
-		assert.ok(!r.ok);
-		if (!r.ok) assert.match(r.error, /SOMETHING_ELSE.*DEEPGRAM_API_KEY/);
-	});
-});
-
-describe("genericProviderKeyGuard (model-provider keys — paste hygiene only)", () => {
-	it("accepts any ≥12-char whitespace-free value (families vary)", () => {
-		assert.deepEqual(genericProviderKeyGuard("OPENROUTER_API_KEY", "sk-or-v1-abc123"), { ok: true });
-		assert.deepEqual(genericProviderKeyGuard("OPENAI_API_KEY", "whaterver-value-here"), { ok: true });
-		assert.deepEqual(genericProviderKeyGuard("HF_TOKEN", "hf_xxxxxxxx9999"), { ok: true });
-	});
-
-	it("rejects truncations and whitespace — the only guards", () => {
-		const short = genericProviderKeyGuard("ZAI_API_KEY", "short");
-		assert.ok(!short.ok);
-		if (!short.ok) assert.match(short.error, /at least 12/);
-		assert.ok(!genericProviderKeyGuard("OPENAI_API_KEY", "has whitespace now").ok);
-		assert.ok(!genericProviderKeyGuard("OPENAI_API_KEY", "   ").ok);
-	});
-
-	it("trims before checking", () => {
-		assert.ok(genericProviderKeyGuard("OPENROUTER_API_KEY", "  sk-or-v1-xyz999  ").ok);
 	});
 });
 

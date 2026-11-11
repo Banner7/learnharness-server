@@ -32,7 +32,8 @@ function safeTree(root) {
 }
 function validatePackage(root, code, id) {
 	safeTree(code);
-	const appVersion = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
+	// Plugins target the upstream plugin host version, not this build's own version.
+	const appVersion = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).pluginHostVersion;
 	const manifest = parsePluginManifest(JSON.parse(fs.readFileSync(path.join(code, "manifest.json"), "utf8")), id, appVersion);
 	for (const entry of [manifest.main, manifest.backend, manifest.styles].filter(Boolean)) {
 		if (!fs.lstatSync(path.join(code, entry)).isFile()) throw new Error(`Missing Core package entry: ${id}/${entry}`);

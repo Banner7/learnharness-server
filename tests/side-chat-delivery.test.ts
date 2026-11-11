@@ -34,7 +34,7 @@ const { piModels } = await import("../src/agent/models.ts");
 const { readSettings, writeSettings } = await import("../src/store/settings.ts");
 const { collectCitations, serializeCitation } = await import("../src/core/citations.ts");
 const { parseSideAskInput, SideChatInputError } = await import("../src/core/side-chat.ts");
-const { markUnadmittedUsage } = await import("../src/agent/subscription-request-cycle.ts");
+const { markUnadmittedUsage } = await import("../src/agent/usage-admission.ts");
 const { POST: dismissRoute } = await import("../app/api/chats/[id]/dismiss/route.ts");
 const { applyParkedDismissal, parkDismissal } = await import("../src/server/dismissal-park.ts");
 after(() => fs.rmSync(scratch, { recursive: true, force: true }));
@@ -451,7 +451,7 @@ describe("append-only main-request delivery", () => {
 		chatStore.updateSideChats(f.chatId, () => [thread]);
 		let captures = 0;
 		const service = { ...f.service, snapshot: (id: string) => {
-			if (++captures === 2) chatStore.updateSideChats(id, (threads) => threads.map((entry) => ({ ...entry,
+			if (++captures === 1) chatStore.updateSideChats(id, (threads) => threads.map((entry) => ({ ...entry,
 				messages: [...entry.messages, { id: "gap_answer", role: "assistant", text: "FIRST CALL GAP REPLY", at: new Date().toISOString() }] })));
 			return f.service.snapshot(id);
 		} };

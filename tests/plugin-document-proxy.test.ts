@@ -40,7 +40,7 @@ it("Proxy retains API roots, siblings, endpoint lookalikes and all other API rou
 		"/api/graph/import", "/api/events", "/api/chat", "/api/settings/models", "/api/chats/scratch/markdown",
 	]) assert.equal(proxyMatches(path), true, path);
 	for (const path of ["/", "/chat/new", "/apix", "/api-other/plugins/document-one/documents/markdown"]) {
-		assert.equal(proxyMatches(path), false, path);
+		assert.equal(proxyMatches(path), true, `${path}: pages are gated too`);
 	}
 });
 
@@ -96,22 +96,11 @@ it("current Proxy config leaves a valid no-Content-Length multipart document con
 	assert.equal(cloned, false);
 });
 
-const methods = ["POST", "GET", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] as const;
-const secret = "a".repeat(64);
-const capabilityHeader = "x-learnharness-desktop";
-const forbidden = { error: "Desktop API access requires the trusted LearnHarness window." };
+import { configureGate, gateHeaders } from "./helpers/web-gate.ts";
 
-async function withDesktopEnvironment(marker: string | undefined, capability: string | undefined, run: () => Promise<void>) {
-	const beforeMarker = process.env.LH_DESKTOP_SERVER, beforeCapability = process.env.LH_DESKTOP_API_SECRET;
-	try {
-		if (marker === undefined) delete process.env.LH_DESKTOP_SERVER; else process.env.LH_DESKTOP_SERVER = marker;
-		if (capability === undefined) delete process.env.LH_DESKTOP_API_SECRET; else process.env.LH_DESKTOP_API_SECRET = capability;
-		await run();
-	} finally {
-		if (beforeMarker === undefined) delete process.env.LH_DESKTOP_SERVER; else process.env.LH_DESKTOP_SERVER = beforeMarker;
-		if (beforeCapability === undefined) delete process.env.LH_DESKTOP_API_SECRET; else process.env.LH_DESKTOP_API_SECRET = beforeCapability;
-	}
-}
+const methods = ["POST", "GET", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] as const;
+configureGate();
+function gateVariant(change: (headers: Headers) => void): Headers { const headers = gateHeaders(); change(headers); return headers; }
 
 /** Fail immediately on body access and independently count any internal reads. */
 function unreadableRequest(method: typeof methods[number], headers?: HeadersInit) {
@@ -136,64 +125,53 @@ function unreadableRequest(method: typeof methods[number], headers?: HeadersInit
 it("document route authenticates ALL methods before params, transport/getHost, or any body access", async t => {
 	const getHost = t.mock.fn(async () => { throw new Error("Authorization must precede host composition"); });
 	const transport = createPluginTransport({ getHost, directory: "/unused-document-route-test" });
+	t.mock.method(console, "warn", () => {}); // Next's patched console needs a request store.
 	const convert = t.mock.method(transport, "convertDocument");
 	const route = createPluginDocumentRoute(transport);
 	const refusals = [
-		{ marker: "1", capability: secret, supplied: undefined },
-		{ marker: "1", capability: secret, supplied: "" },
-		{ marker: "1", capability: secret, supplied: "wrong" },
-		{ marker: "1", capability: secret, supplied: `${secret}, ${secret}` },
-		{ marker: "1", capability: undefined, supplied: secret },
-		{ marker: "1", capability: "too-short", supplied: "too-short" },
-		{ marker: undefined, capability: secret, supplied: undefined },
+		gateVariant(h => h.delete("authorization")),
+		gateVariant(h => h.set("authorization", "Basic d3Jvbmc=")),
+		gateVariant(h => h.set("host", "rebind.invalid")),
+		gateVariant(h => { h.set("origin", "https://other.invalid"); h.set("sec-fetch-site", "cross-site"); }),
 	];
-	for (const { marker, capability, supplied } of refusals) await withDesktopEnvironment(marker, capability, async () => {
-		for (const method of methods) {
-			const headers: Record<string, string> = supplied === undefined ? {} : { [capabilityHeader]: supplied };
-			const upload = unreadableRequest(method, headers);
-			let paramsAccesses = 0;
-			const context = { get params(): Promise<{ id: string }> { paramsAccesses++; throw new Error("Authorization must precede params"); } };
-			const response = method === "POST" ? await route.POST(upload.request, context) : await route[method](upload.request);
-			assert.equal(response.status, 403, method);
-			assert.equal(response.headers.get("Cache-Control"), "no-store", method);
-			assert.deepEqual(await response.json(), forbidden, method);
-			const proxyRefusal = proxy(new NextRequest(new URL("/api/settings", origin), { method, headers }));
-			assert.equal(response.status, proxyRefusal.status, `${method}: same existing Proxy policy`);
-			assert.deepEqual(await proxyRefusal.json(), forbidden, method);
-			assert.equal(paramsAccesses, 0, method);
-			upload.assertUntouched();
-		}
-	});
+	for (const headers of refusals) for (const method of methods) {
+		const upload = unreadableRequest(method, headers);
+		let paramsAccesses = 0;
+		const context = { get params(): Promise<{ id: string }> { paramsAccesses++; throw new Error("Authorization must precede params"); } };
+		const response = method === "POST" ? await route.POST(upload.request, context) : await route[method](upload.request);
+		assert.ok(response.status === 401 || response.status === 403, method);
+		assert.equal(response.headers.get("Cache-Control"), "private, no-store", method);
+		assert.equal(paramsAccesses, 0, method);
+		upload.assertUntouched();
+	}
 	assert.equal(convert.mock.callCount(), 0, "no resource operation before authority");
 	assert.equal(getHost.mock.callCount(), 0, "no root composition before authority");
 });
 
 it("authorized document route methods preserve POST dispatch, empty 405s and OPTIONS 204 with Allow", async t => {
-	for (const mode of ["desktop", "browser-only", "secret-without-marker"] as const) {
-		await withDesktopEnvironment(mode === "desktop" ? "1" : undefined, mode === "browser-only" ? undefined : secret, async () => {
-			const headers: Record<string, string> = mode === "browser-only" ? {} : { [capabilityHeader]: secret };
-			const forwarded = Response.json(result, { headers: { "Cache-Control": "no-store" } });
-			const convert = t.mock.fn(async (id: string, request: Request) => {
-				assert.equal(id, "document-one");
-				assert.equal(request, post);
-				return forwarded;
-			});
-			const route = createPluginDocumentRoute({ convertDocument: convert });
-			for (const method of methods) {
-				if (method === "POST") continue;
-				const upload = unreadableRequest(method, headers);
-				const response = await route[method](upload.request);
-				assert.equal(response.status, method === "OPTIONS" ? 204 : 405, `${mode}: ${method}`);
-				if (method === "OPTIONS") assert.equal(response.headers.get("Allow"), "OPTIONS, POST");
-				assert.equal(await response.text(), "", `${mode}: ${method}`);
-				upload.assertUntouched();
-			}
-			assert.equal(convert.mock.callCount(), 0, "non-POST methods do not dispatch conversion");
-			const form = new FormData(); form.append("file", new File([result.markdown], result.name));
-			const post = new Request(new URL(documentPath, origin), { method: "POST", headers, body: form });
-			assert.equal(await route.POST(post, { params: Promise.resolve({ id: "document-one" }) }), forwarded);
-			assert.equal(convert.mock.callCount(), 1);
-			assert.equal(post.bodyUsed, false, "route forwards the original request untouched");
-		});
+	const headers = gateHeaders();
+	const forwarded = Response.json(result, { headers: { "Cache-Control": "no-store" } });
+	const convert = t.mock.fn(async (id: string, request: Request) => {
+		assert.equal(id, "document-one");
+		assert.equal(request, post);
+		return forwarded;
+	});
+	const route = createPluginDocumentRoute({ convertDocument: convert });
+	for (const method of methods) {
+		if (method === "POST") continue;
+		const upload = unreadableRequest(method, headers);
+		const response = await route[method](upload.request);
+		assert.equal(response.status, method === "OPTIONS" ? 204 : 405, method);
+		if (method === "OPTIONS") assert.equal(response.headers.get("Allow"), "OPTIONS, POST");
+		assert.equal(await response.text(), "", method);
+		upload.assertUntouched();
 	}
+	assert.equal(convert.mock.callCount(), 0, "non-POST methods do not dispatch conversion");
+	const form = new FormData(); form.append("file", new File([result.markdown], result.name));
+	const post = new Request(new URL(documentPath, origin), { method: "POST", headers, body: form });
+	const posted = await route.POST(post, { params: Promise.resolve({ id: "document-one" }) });
+	assert.equal(posted.status, 200); assert.deepEqual(await posted.json(), result);
+	assert.equal(posted.headers.get("X-Content-Type-Options"), "nosniff");
+	assert.equal(convert.mock.callCount(), 1);
+	assert.equal(post.bodyUsed, false, "route forwards the original request untouched");
 });

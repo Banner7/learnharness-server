@@ -1,6 +1,6 @@
 /**
  * Tests for the section parsers (settings-storage wave, 2026-09-19):
- * src/server/settings-body.ts — general/agent/appearance/graph strictness.
+ * src/server/settings-body.ts — agent/appearance/graph strictness.
  * Same discipline as parseSettingsBody (its tests live in
  * default-settings.test.ts): every known field is strict (bad type/shape
  * → 400-style error, never a silent clamp), unknown keys drop, absent
@@ -13,27 +13,10 @@ import {
 	parseAgentSettingsBody,
 	parseModelsSettingsBody,
 	parseAppearanceSettingsBody,
-	parseGeneralSettingsBody,
 	parseCompactionSettingsBody,
 	parseGraphSettingsBody,
 	SETTINGS_SECTIONS,
 } from "../src/server/settings-body.ts";
-
-describe("parseGeneralSettingsBody", () => {
-	it("parses {} and {autoUpdate} replace-whole", () => {
-		const empty = parseGeneralSettingsBody({});
-		assert.ok(empty.ok);
-		assert.deepEqual(empty.settings, {});
-		const on = parseGeneralSettingsBody({ autoUpdate: true });
-		assert.ok(on.ok);
-		assert.deepEqual(on.settings, { autoUpdate: true });
-	});
-
-	it("rejects non-objects and non-boolean autoUpdate", () => {
-		assert.equal(parseGeneralSettingsBody("x").ok, false);
-		assert.equal(parseGeneralSettingsBody({ autoUpdate: "yes" }).ok, false);
-	});
-});
 
 describe("parseAgentSettingsBody", () => {
 	it("worker concurrency accepts positive safe integers only; absent resets to the default", () => {
@@ -286,14 +269,13 @@ describe("parseCompactionSettingsBody (owner round 14)", () => {
 });
 
 describe("SETTINGS_SECTIONS (the route's section map)", () => {
-	it("maps exactly the eight record sections", () => {
+	it("maps exactly the seven record sections", () => {
 		// compaction joined (owner round 14): its own section PUT — the
-		// threshold is engine behavior, not an agent-section key. The custom
-		// endpoint is NOT a section: it is one more provider in the Keys list,
-		// connected through POST /api/custom-provider.
+		// threshold is engine behavior, not an agent-section key. Custom
+		// providers are server configuration (LH_CUSTOM_PROVIDERS), not a section.
 		assert.deepEqual(
 			Object.keys(SETTINGS_SECTIONS),
-			["general", "chat", "agent", "appearance", "graph", "compaction", "models", "dictation", "claudeCode"],
+			["chat", "agent", "appearance", "graph", "compaction", "models", "dictation"],
 		);
 	});
 });

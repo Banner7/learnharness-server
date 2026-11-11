@@ -7,7 +7,7 @@ import type {
 	PluginAgentSnapshot, PluginCallPurpose, PluginModelSpec,
 } from "../core/plugin-agents.ts";
 import type { PiEngine } from "./models.ts";
-import { usageWasAdmitted } from "./subscription-request-cycle.ts";
+import { usageWasAdmitted } from "./usage-admission.ts";
 
 import type { PluginAgentRecordStore } from "../core/ports.ts";
 export type { PluginAgentRecordStore } from "../core/ports.ts";

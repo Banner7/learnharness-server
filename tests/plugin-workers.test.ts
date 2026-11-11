@@ -9,7 +9,7 @@ import { Type } from "typebox";
 import { createPluginWorkerService, type PluginWorkerServiceDeps } from "../src/agent/plugin-workers.ts";
 import { createPluginTaskRecordStore } from "../src/store/plugin-task-records.ts";
 import { runSubagent } from "../src/agent/subagents/pi-run.ts";
-import { markUnadmittedUsage } from "../src/agent/subscription-request-cycle.ts";
+import { markUnadmittedUsage } from "../src/agent/usage-admission.ts";
 import type { PluginTaskSnapshot, PluginWorkerDefinition, PluginWorkerStartOptions } from "../src/core/plugin-workers.ts";
 
 const pin = { provider: "worker-fixture", id: "offline", thinkingLevel: "medium" } as const;

@@ -10,7 +10,10 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lh-search-expansion-"));
 process.env.LH_DATA_DIR = path.join(dir, "data");
 process.env.LH_AUTH_FILE = path.join(dir, "auth.json");
 for (const { envVar } of SEARCH_ENGINES) delete process.env[envVar];
-const { saveKey, deleteKey, keyStatuses } = await import("../src/server/keys.ts");
+const { keyStatuses } = await import("../src/server/keys.ts");
+// Keys are server environment only; tests set them the way an operator would.
+const saveKey = (name: string, value: string) => { process.env[name] = value; return { ok: true }; };
+const deleteKey = (name: string) => { delete process.env[name]; };
 const { writeSettings, readSettings } = await import("../src/store/settings.ts");
 const { searchStatus, searchProvider } = await import("../src/server/search.ts");
 const realFetch = globalThis.fetch;
@@ -33,7 +36,7 @@ const engines = [
 ] as const;
 
 for (const { id, envVar, url, header, prefix, payload } of engines) {
-	it(`${id}: saving, rotating, env override, pinning and deleting use the live shared composition`, async () => {
+	it(`${id}: setting, rotating, pinning and removing keys use the live shared composition`, async () => {
 		const fake = id === "firecrawl" ? "fc-fake-key-1234567890" : `${id}-fake-key-1234567890`;
 		assert.equal(searchStatus().available, false);
 		assert.equal(saveKey(envVar, fake).ok, true);
@@ -56,11 +59,6 @@ for (const { id, envVar, url, header, prefix, payload } of engines) {
 		expectedKey = `${fake}-rotated`;
 		assert.equal(saveKey(envVar, expectedKey).ok, true);
 		await search();
-		process.env[envVar] = expectedKey = `${fake}-environment`;
-		await search();
-		delete process.env[envVar];
-		expectedKey = `${fake}-rotated`;
-		await search();
 		writeSettings({ version: 1, agent: { search: { engine: id } } });
 		assert.equal(readSettings()?.agent?.search?.engine, id);
 		assert.match(searchStatus().reason, /chosen/);
@@ -73,7 +71,7 @@ for (const { id, envVar, url, header, prefix, payload } of engines) {
 		assert.equal(keyStatuses().find((row) => row.id === envVar)?.present, false);
 		writeSettings({ version: 1 });
 		assert.equal(searchStatus().engine, "tavily", "clearing the pin restores Automatic selection");
-		assert.equal(calls, 5);
+		assert.equal(calls, 3);
 	});
 }
 

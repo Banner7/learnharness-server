@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
-import { CLAUDE_CODE_PROVIDER, sessionCacheHitRate, subscriptionLabels, subscriptionLabel, type cliContextWindowOf, type SessionPricing, type TurnUsage } from "@/src/core";
+import { CLAUDE_CODE_PROVIDER, sessionCacheHitRate, type cliContextWindowOf, type SessionPricing, type TurnUsage } from "@/src/core";
 import { formatTokens, formatUsd, planCostLabel, prettyModel } from "@/components/usage-format";
 import { ModelControl, catalogLimits, useModelCatalog } from "@/components/model-picker";
 import { usePopoverDismiss } from "@/components/popover-dismiss";
@@ -88,13 +88,12 @@ export function StatsBar({
 	const limit = contextLimitForModel(selectedModel, limits, cliContextWindow);
 	const contextLabel = formatContextMeasurement(contextTokens, limit);
 	const cacheHitRate = useMemo(() => sessionCacheHitRate({ turns }), [turns]);
-	const { cost = 0, unpriced = turns.length, subscription = 0 } = pricing ?? {};
+	const { cost = 0, unpriced = turns.length } = pricing ?? {};
 	// Honest cost: show dollars only when at least one turn priced;
 	// otherwise "—" (never a fake $0.0000).
-	const pricedCount = turns.length - unpriced - subscription;
-	const providers = pricing?.subscriptionProviders ?? subscriptionLabels(turns.map((turn) => turn.model));
+	const pricedCount = turns.length - unpriced;
 	const cliBilled = turns.some((turn) => turn.model.startsWith(`${CLAUDE_CODE_PROVIDER}:`));
-	const costLabel = planCostLabel(pricedCount > 0 ? cost : null, cliBilled ? [...providers, "CLI"] : providers);
+	const costLabel = planCostLabel(pricedCount > 0 ? cost : null, cliBilled ? ["CLI"] : []);
 
 	return (
 		<div
@@ -154,7 +153,7 @@ export function StatsBar({
 								<p>Window reported by Claude Code; may be lower for auto-compaction.</p>
 							)}
 							<div className="flex justify-between gap-2">
-								<span>{subscription ? "Usage" : "Total cost"}</span>
+								<span>Total cost</span>
 								<span className="tabular-nums text-card-foreground">{costLabel}</span>
 							</div>
 							{cacheHitRate !== null && (
@@ -163,7 +162,6 @@ export function StatsBar({
 									<span className="tabular-nums text-card-foreground">{(cacheHitRate * 100).toFixed(1)}%</span>
 								</div>
 							)}
-							{providers.includes("ChatGPT") && <a href="https://chatgpt.com/settings/usage" target="_blank" rel="noreferrer" className="underline underline-offset-2">Manage ChatGPT usage</a>}
 							{unpriced > 0 && (
 								<div className="flex justify-between gap-2">
 									<span>Unpriced turns</span>
@@ -186,7 +184,7 @@ export function StatsBar({
 												</span>
 												<span className="flex shrink-0 items-center gap-2 tabular-nums text-card-foreground">
 													<span className="text-muted-foreground">{turn.steps.length} steps</span>
-													<span>{turn.model.startsWith(`${CLAUDE_CODE_PROVIDER}:`) ? "CLI" : subscriptionLabel(turn.model) ?? (c === null ? "—" : formatUsd(c))}</span>
+													<span>{turn.model.startsWith(`${CLAUDE_CODE_PROVIDER}:`) ? "CLI" : c === null ? "—" : formatUsd(c)}</span>
 												</span>
 											</li>
 										);

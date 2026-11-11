@@ -1212,7 +1212,7 @@ export async function verifyPluginBrowser(url, options = {}) {
 		evidence.nativeNumberVisualReviewRequired = evidence.nativeNumbers.some(sample => sample.token && !sample.visibleTextProof.startsWith("Chromium native UA"));
 		evidence.assertions.push("Actual Chromium native-number 1e buffers consume Escape without writes/unset or dialog dismissal; visible token retention is proved by native UA text when available, otherwise paired input screenshots require human review; valid concurrency 3.0→3 and prose size -5→12 display canonical acknowledgments without changing number types/stepper attributes");
 
-		evidence.stage = "worker admission: UI limit 1 and keyless LOOPBACK provider";
+		evidence.stage = "worker admission: UI limit 1";
 		const untouched = await admissionCall("admission-status");
 		assert.deepEqual(untouched.tasks, [], "Activation must not automatically start workers");
 		assert.equal(untouched.counts.requests, 0);
@@ -1222,23 +1222,6 @@ export async function verifyPluginBrowser(url, options = {}) {
 		assert.equal(mock.hostname, "127.0.0.1");
 		assert.equal(mock.protocol, "http:");
 		assert.equal(mock.pathname, "/v1");
-		const configured = await page.evaluate(async baseUrl => {
-			const before = await fetch("/api/custom-provider");
-			if (!before.ok) throw new Error("Custom provider GET failed: " + before.status);
-			const etag = before.headers.get("etag");
-			await before.json();
-			if (!etag) throw new Error("Custom provider GET did not provide an ETag");
-			const response = await fetch("/api/custom-provider", { method: "POST", headers: { "content-type": "application/json", "If-Match": etag }, body: JSON.stringify({ baseUrl, authMode: "keyless" }) });
-			const payload = await response.json();
-			if (!response.ok) throw new Error("Custom provider POST: " + response.status + ": " + JSON.stringify(payload));
-			const after = await fetch("/api/custom-provider");
-			if (!after.ok) throw new Error("Custom provider verification GET failed");
-			return { etag, payload, configured: await after.json() };
-		}, untouched.mockBase);
-		assert.equal(configured.configured.baseUrl, untouched.mockBase);
-		assert.equal(configured.configured.authMode, "keyless");
-		assert.ok(configured.payload.models.some(model => model.id === "admission-fixture"), "Real custom-provider discovery must find the mock /models endpoint");
-		evidence.customProvider = configured;
 		const batch = await admissionCall("admission-start");
 		const ids = batch.tasks.map(task => task.id);
 		assert.equal(new Set(ids).size, 3);
@@ -1277,7 +1260,7 @@ export async function verifyPluginBrowser(url, options = {}) {
 		assert.ok(terminal.tasks.every(task => task.status === "cancelled" && task.error?.code === "cancelled"));
 		await health();
 		await screenshot("admission-cancelled");
-		evidence.assertions.push("Agent numeric UI stores 1→2→1; real ETag/keyless custom-provider discovery uses activation-owned loopback only; three standalone workers remain visible without session links; panel END releases FIFO admission and all end cancelled, with zero completed provider responses (no generation tested)");
+		evidence.assertions.push("Agent numeric UI stores 1→2→1; three standalone workers remain visible without session links; panel END releases FIFO admission and all end cancelled, with zero completed provider responses (no generation tested)");
 
 		evidence.stage = "native plugin question: canonical predict authority and public editor";
 		const questionRoute = `/api/chats/${QUESTION.chatId}`;

@@ -64,18 +64,22 @@ describe("presets", () => {
 			assert.ok(sanitizeThemeFile(t), t.id);
 			assert.ok(!ids.has(t.id), `duplicate ${t.id}`);
 			ids.add(t.id);
-			assert.equal(t.id, themeIdFromName(t.name));
+			// "default" keeps its old id so saved records resolve; it is named Classic Dark.
+			if (t.id !== "default") assert.equal(t.id, themeIdFromName(t.name));
 			assert.equal(t.builtin, true);
 		}
 		assert.deepEqual([...ids], [
-			"default", "catppuccin-latte", "catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha",
+			"automatic", "kanagawa-kasumi-sand", "kanagawa-kasumi-ink", "default", "catppuccin-latte", "catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha",
 			"rose-pine", "rose-pine-dawn", "gruvbox-dark", "ivory", "pastel", "nvchad-onedark",
 		]);
 	});
 
-	it("an unknown or removed id resolves to Default", () => {
-		assert.equal(resolveTheme(undefined), DEFAULT_THEME);
-		assert.equal(resolveTheme("gone"), DEFAULT_THEME);
+	it("an unknown or removed id resolves to Automatic, rendered by the system mode", () => {
+		assert.deepEqual(resolveTheme(undefined), DEFAULT_THEME);
+		assert.deepEqual(resolveTheme("gone"), DEFAULT_THEME);
+		const dark = resolveTheme(undefined, [], "dark");
+		assert.equal(dark.id, "automatic"); assert.equal(dark.mode, "dark");
+		assert.deepEqual(dark.colors, BUILTIN_THEMES.find((t) => t.id === "kanagawa-kasumi-ink")!.colors);
 		const custom: Theme = { ...validFile, mode: "dark", id: "my-ayu", builtin: false };
 		assert.equal(resolveTheme("my-ayu", [custom]), custom);
 	});
@@ -92,10 +96,10 @@ function cssBlock(css: string, selector: string): Map<string, string> {
 }
 
 describe("themeVars — the adapter", () => {
-	it("Default reproduces app/globals.css's literals exactly", () => {
+	it("Automatic (Kasumi Sand) reproduces app/globals.css's literals exactly", () => {
 		const css = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-		const block = cssBlock(css, ":root,\n.dark");
-		for (const [token, value] of Object.entries(themeVars(DEFAULT_THEME.colors, "dark"))) {
+		const block = cssBlock(css, ":root");
+		for (const [token, value] of Object.entries(themeVars(DEFAULT_THEME.colors, "light"))) {
 			assert.equal(block.get(token), value, token);
 		}
 	});

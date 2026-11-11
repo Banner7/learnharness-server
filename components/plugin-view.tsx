@@ -28,7 +28,7 @@ export function PluginViewScreen({ pluginId, viewId }: { pluginId: string; viewI
 	const unavailable = !plugin ? "Plugin is not installed." : !plugin.info.enabled ? "This plugin is disabled." : "This plugin view is not available.";
 	return <div className="flex h-dvh min-w-0 flex-col">
 		<TopBar>
-			<h1 data-plugin-chrome-title className="min-w-0 truncate font-title text-3xl tracking-tight">{view?.name ?? plugin?.info.manifest?.name ?? "Plugin"}</h1>
+			<h1 data-plugin-chrome-title className="min-w-0 truncate font-title text-2xl tracking-tight sm:text-3xl">{view?.name ?? plugin?.info.manifest?.name ?? "Plugin"}</h1>
 			<div className="min-w-4 flex-1" aria-hidden="true" />
 			<PluginTopBarActions context={{ placement: "top-bar", surface: "plugin-view", pluginId, viewId }} />
 			<Hint label="Plugin settings" side="bottom">

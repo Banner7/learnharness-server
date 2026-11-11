@@ -11,9 +11,6 @@ import { DeleteNodeDialog } from "../components/delete-node-dialog.tsx";
 import { AbortTurnDialog } from "../components/abort-turn-dialog.tsx";
 import { SetupDialog } from "../components/setup-dialog.tsx";
 import { createPluginUiStore, PluginUiHost } from "../components/plugin-ui-host.tsx";
-import { ChatGPTConnection, ChatGPTUIProvider } from "../components/settings/chatgpt-connection.tsx";
-import { NativeSubscriptionConnection, NativeSubscriptionUIProvider, emptySubscriptionStatus } from "../components/settings/subscription-connections.tsx";
-import type { ChatGPTStatus } from "../src/core/index.ts";
 import { installModalDom } from "./modal-dom.ts";
 
 let root: Root | undefined, restore: (() => void) | undefined;
@@ -152,38 +149,4 @@ it("public plugin menu belongs to its portaled modal anchor, reports errors, and
 	await act(async () => { ui.openMenu(anchor, { items: [], onClose: () => { menuClosed++; } }, { signal: lifetime.signal }); });
 	await f.escape(); assert.equal(menuClosed, 2); assert.equal(dialogClosed, 0); assert.equal(document.activeElement, anchor);
 	await f.escape(); assert.equal(dialogClosed, 1);
-});
-
-for (const provider of ["chatgpt", "native"] as const) it(`${provider} return-to stops at confirmation-back, pending cancellation, and busy refusal`, async () => {
-	const f = fixture(), cancellation = deferred<void>();
-	let cancelCalls = 0;
-	const listeners = new Set<() => void>();
-	let status: ChatGPTStatus = { available: true, pending: false, allowBackgroundUse: true, activeId: "fixture", accounts: [{ id: "fixture", email: "fixture@example.invalid", registration: "fixture", connected: true }], error: null };
-	const native = { ...emptySubscriptionStatus("xai"), available: true, connected: true, connectionId: "fixture" };
-	window.lh = { expandWindow() {}, chatgpt: {
-		status: async () => status, onChange: cb => { listeners.add(cb); return () => { listeners.delete(cb); }; },
-		cancel: async () => { cancelCalls++; await cancellation.promise; status = { ...status, pending: false }; return status; },
-		login: async () => status, select: async () => status, disconnect: async () => status, consent: async () => status, logout: async () => status,
-	}, subscriptions: {
-		status: async () => [native], onChange: cb => { listeners.add(cb); return () => { listeners.delete(cb); }; },
-		cancel: async () => { cancelCalls++; await cancellation.promise; native.pending = false; },
-		login: async () => {}, consent: async () => {}, disconnect: async () => {}, retry: async () => {}, respond: async () => {}, open: async () => {},
-	} };
-	const button = (text: string) => { const node = [...document.querySelectorAll<HTMLButtonElement>("button")].find(node => node.textContent === text); assert(node, `missing ${text}`); return node; };
-	await f.render(<HostDialog open layerId="settings" onClose={() => assert.fail("must not close target")}><h2>Settings</h2>
-		{provider === "chatgpt" ? <ChatGPTUIProvider><ChatGPTConnection /></ChatGPTUIProvider> : <NativeSubscriptionUIProvider><NativeSubscriptionConnection providerId="xai" /></NativeSubscriptionUIProvider>}
-	</HostDialog>);
-	await click(button("Manage…")); await click(button("Disconnect"));
-	let result: string | undefined;
-	await act(async () => { result = f.controller().popTo("settings"); });
-	assert.equal(result, "handled-without-close"); assert.equal(cancelCalls, 0); assert.equal(f.controller().getSnapshot().length, 2);
-	status = { ...status, pending: true }; native.pending = true;
-	await act(async () => { for (const listener of listeners) listener(); });
-	await act(async () => { result = f.controller().popTo("settings"); });
-	assert.equal(result, "pending"); assert.equal(cancelCalls, 1); assert.equal(f.controller().getSnapshot().length, 2);
-	await act(async () => { result = f.controller().popTo("settings"); });
-	assert.equal(result, "blocked"); assert.equal(cancelCalls, 1);
-	await act(async () => cancellation.resolve());
-	assert.equal(f.controller().getSnapshot().length, 1);
-	delete window.lh;
 });

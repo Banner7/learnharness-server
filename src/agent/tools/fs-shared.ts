@@ -86,7 +86,8 @@ const SENSITIVE_HOME_PATHS = [
 /** Templates are deliberately included: their names do not guarantee safe contents. */
 const ENV_FILE = /^\.env(\..*)?$/i;
 const SUBSCRIPTION_FILES = ["chatgpt-credentials.json", "github-copilot-credentials.json", "xai-credentials.json"];
-// Match the actual writers in store/auth.ts and electron/{chatgpt,subscription-store}.cjs.
+// Upstream's subscription sign-in wrote these beside auth.json. This build never
+// writes them, but a copied data directory can still hold them: keep them unreadable.
 const CREDENTIAL_TEMP = /^(?:\.auth\.json\.tmp-\d+|(?:chatgpt|github-copilot|xai)-credentials\.json\.[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tmp)$/i;
 const ATOMIC_TEMP_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -103,6 +104,17 @@ function isCredentialTemp(absolute: string, directory: string, authBasename: str
 		(name.toLowerCase().startsWith(prefix.toLowerCase()) && ATOMIC_TEMP_UUID.test(name.slice(prefix.length)));
 }
 
+/** App-private directories denied whole: the Claude CLI config dir, and
+ *  (on Linux) /proc and /sys, which expose the server process's environment
+ *  and kernel state. Provider secrets reach the process as environment
+ *  variables (never a mounted env file); auth.json itself is denied below. */
+function protectedDirectories(): string[] {
+	const dirs: string[] = [];
+	if (process.env.CLAUDE_CONFIG_DIR) dirs.push(path.resolve(/* turbopackIgnore: true */ process.env.CLAUDE_CONFIG_DIR));
+	if (process.platform === "linux") dirs.push("/proc", "/sys");
+	return dirs;
+}
+
 /** String-only check, also usable with synthetic home/credential locations.
  *  The runtime guard below additionally resolves both sources and protected roots.
  *  Only credentials are app-private denials: learning data remains readable. */
@@ -110,6 +122,7 @@ export function isSensitivePath(absolute: string, home: string = os.homedir(), a
 	const file = comparisonPath(absolute);
 	return ENV_FILE.test(path.basename(file)) ||
 		SENSITIVE_HOME_PATHS.some((p) => isWithin(file, path.join(home, p), true)) ||
+		protectedDirectories().some((p) => isWithin(file, p)) ||
 		credentialFiles(authFile).some((p) => isWithin(file, p)) ||
 		isCredentialTemp(file, path.dirname(authFile), path.basename(comparisonPath(authFile)));
 }
@@ -157,9 +170,11 @@ export function sensitiveHomeLocations(
 function sourcePathCheck(home = os.homedir()): (absolute: string) => boolean {
 	const homeRoots = sensitiveHomeLocations(home).map(protectedRealPath);
 	const files = credentialFiles(AUTH_FILE).map(protectedRealPath);
+	const dirs = protectedDirectories().map(protectedRealPath);
 	const credentialDir = protectedRealPath(path.dirname(AUTH_FILE));
 	return (absolute) => isSensitivePath(absolute, home) ||
 		homeRoots.some((p) => isWithin(absolute, p, true)) ||
+		dirs.some((p) => isWithin(absolute, p)) ||
 		files.some((p) => isWithin(absolute, p)) || isCredentialTemp(absolute, credentialDir, path.basename(comparisonPath(AUTH_FILE)));
 }
 

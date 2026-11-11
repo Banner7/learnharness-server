@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { parseHTML } from "linkedom";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PathInput, INSERT_CITATION_EVENT, INSERT_FILE_PATHS_EVENT, UPDATE_CITATION_EVENT } from "../components/path-input.tsx";
+import { PathInput, INSERT_CITATION_EVENT, UPDATE_CITATION_EVENT } from "../components/path-input.tsx";
 import {
 	PATH_CARET_ATTRIBUTE, PATH_SOURCE_ATTRIBUTE, PathInputHistory, adjacentPathRange, atomicPathRange,
 	insertCitation, insertFilePaths, normalizePathEdit, normalizePathInputValue, pathInputOffset, pathInputPoint, pathInputStaticRange, readPathInput,
@@ -119,9 +119,9 @@ test("owned history restores values and directional selections; a new edit disca
 	assert.equal(history.undo(b), null);
 });
 
-test("textbox exposes accessibility, placeholder, global-drop markers and requested sizing", () => {
-	const html = renderToStaticMarkup(<PathInput value="" onValueChange={() => {}} placeholder="Ask" aria-label="Message" defaultDropTarget className="min-h-24 max-h-64" />);
-	for (const pattern of [/role="textbox"/, /aria-multiline="true"/, /aria-label="Message"/, /data-file-path-input=""/, /data-file-path-default=""/, /data-placeholder="Ask"/, /min-h-24 max-h-64/]) assert.match(html, pattern);
+test("textbox exposes accessibility, placeholder, file-path marker and requested sizing", () => {
+	const html = renderToStaticMarkup(<PathInput value="" onValueChange={() => {}} placeholder="Ask" aria-label="Message" className="min-h-24 max-h-64" />);
+	for (const pattern of [/role="textbox"/, /aria-multiline="true"/, /aria-label="Message"/, /data-file-path-input=""/, /data-placeholder="Ask"/, /min-h-24 max-h-64/]) assert.match(html, pattern);
 });
 
 test("SSR preserves the full escaped initial draft without waiting for client effects", () => {
@@ -209,25 +209,6 @@ async function fixture(initial: string, singleLine = false) {
 		},
 	};
 }
-
-test("native typing, token insertion/deletion and undo/redo share one history", async () => {
-	const f = await fixture("a");
-	f.select(1);
-	await f.nativeText("ab");
-	await f.event(INSERT_FILE_PATHS_EVENT, { detail: ["/notes.pdf"] });
-	assert.equal(f.value, "ab `/notes.pdf`");
-	assert.match(f.root.textContent!, /notes.pdf/);
-	await f.event("keydown", { key: "Backspace" });
-	assert.equal(f.value, "ab ");
-	await f.event("keydown", { key: "z", metaKey: true });
-	assert.equal(f.value, "ab `/notes.pdf`");
-	await f.event("keydown", { key: "z", metaKey: true });
-	assert.equal(f.value, "ab");
-	await f.event("keydown", { key: "z", metaKey: true });
-	assert.equal(f.value, "a");
-	await f.event("beforeinput", { inputType: "historyRedo" });
-	assert.equal(f.value, "ab");
-});
 
 test("Cmd+Backspace delegates line extent to beforeinput instead of deleting just the final chip", async () => {
 	const source = "Explain `/tmp/notes.pdf`";
@@ -387,19 +368,13 @@ test("immutable SSR fallback never stomps native edits, controlled updates, chip
 	assert.equal(f.root.dataset.empty, "true");
 });
 
-test("external dictation append/reset and drop at an unfocused saved selection", async () => {
+test("external dictation append/reset", async () => {
 	const f = await fixture("one two");
-	f.select(3);
-	f.doc.getElementById("elsewhere")!.focus();
-	await f.event(INSERT_FILE_PATHS_EVENT, { detail: ["/notes one.pdf"] });
-	assert.equal(f.value, "one `/notes one.pdf` two");
-	assert.equal(f.doc.activeElement, f.root);
-	assert.equal(f.keys, 0, "staging must not submit");
 	f.select(f.value.length);
 	await f.external(`${f.value}\nspoken words`);
 	assert.equal(readPathInput(f.root), f.value);
 	await f.event("keydown", { key: "z", ctrlKey: true });
-	assert.equal(f.value, "one `/notes one.pdf` two");
+	assert.equal(f.value, "one two");
 	await f.external("");
 	assert.equal(readPathInput(f.root), "");
 	await f.event("keydown", { key: "z", ctrlKey: true });
@@ -606,8 +581,6 @@ test("single-line Enter reaches its consumer but cannot insert a newline", async
 	assert.equal(lineBreak.defaultPrevented, true);
 	assert.equal(f.value, "answer");
 	assert.deepEqual(f.writes, []);
-	await f.event(INSERT_FILE_PATHS_EVENT, { detail: ["/course/notes.pdf"] });
-	assert.equal(f.value, "answer `/course/notes.pdf`");
 });
 
 test("single-line IME sanitizes after completion, and queued external assignments do not synthesize changes", async () => {

@@ -72,6 +72,8 @@ One row of the providers surface.
 ```ts
 export interface CatalogProvider {
     id: string;
+    name?: string;
+    serverManaged?: true;
     envVar: string;
     keyPresent: boolean;
 }
@@ -80,6 +82,8 @@ export interface CatalogProvider {
 **Member index** (including nested object members; inherited members are defined in the linked base types):
 
 - [id](#catalogprovider-id)
+- [name](#catalogprovider-name)
+- [serverManaged](#catalogprovider-servermanaged)
 - [envVar](#catalogprovider-envvar)
 - [keyPresent](#catalogprovider-keypresent)
 
@@ -89,9 +93,25 @@ export interface CatalogProvider {
 id: string;
 ```
 
+### CatalogProvider name
+
+Display name for server-managed (LH_CUSTOM_PROVIDERS) providers.
+
+```ts
+name?: string;
+```
+
+### CatalogProvider serverManaged
+
+Configured on the server only (LH_CUSTOM_PROVIDERS); never written here.
+
+```ts
+serverManaged?: true;
+```
+
 ### CatalogProvider envVar
 
-Credential environment-variable name; empty for subscription/native CLI routes.
+Credential environment-variable name; empty for native CLI and server-managed routes.
 
 ```ts
 envVar: string;
@@ -99,8 +119,8 @@ envVar: string;
 
 ### CatalogProvider keyPresent
 
-Host credential/connection availability flag, not a remote health check.
-Custom keyless connections can be available without an API key.
+Host credential availability flag, not a remote health check.
+Server-managed endpoints can be available without an API key.
 
 ```ts
 keyPresent: boolean;

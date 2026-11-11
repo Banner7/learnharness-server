@@ -31,13 +31,13 @@ const mocha = BUILTIN_THEMES.find((t) => t.id === "catppuccin-mocha")!;
 describe("resolveAppearance — delta over factory", () => {
 	it("absent everything = the factory view", () => {
 		const a = resolveAppearance(undefined);
-		assert.equal(a.theme, "default");
+		assert.equal(a.theme, "automatic");
 		assert.equal(a.background, null);
 		assert.deepEqual(a.colors, {});
 		assert.equal(a.fontFamily, null);
-		assert.equal(a.proseFontSize, 16);
+		assert.equal(a.proseFontSize, 17);
 		assert.equal(a.sessionNameSerif, true);
-		assert.deepEqual(a.mdRendering, { headingWeight: 900, boldColor: null, italicColor: null });
+		assert.deepEqual(a.mdRendering, { headingWeight: 700, boldColor: null, italicColor: null });
 	});
 
 	it("explicit deltas win field-by-field", () => {
@@ -52,11 +52,11 @@ describe("resolveAppearance — delta over factory", () => {
 describe("appearanceVars — the mapping the provider applies", () => {
 	it("factory appearance on Default: the Default palette plus the type tokens", () => {
 		const vars = appearanceVars(resolveAppearance(undefined), DEFAULT_THEME);
-		assert.equal(vars["--background"], "#141414");
-		assert.equal(vars["--accent"], "#2a2a2a", "the hover surface keeps its hand-picked value");
-		assert.equal(vars["--lh-ink-strong"], "#e6e6e6", "emphasis = text on Default");
-		assert.equal(vars["--lh-prose-size"], "16px");
-		assert.equal(vars["--lh-heading-weight"], "900");
+		assert.equal(vars["--background"], "#d9d1ba");
+		assert.equal(vars["--accent"], "#d6d0bd", "the hover surface keeps its hand-picked value");
+		assert.equal(vars["--lh-ink-strong"], "#1a2026", "emphasis = text on Default");
+		assert.equal(vars["--lh-prose-size"], "17px");
+		assert.equal(vars["--lh-heading-weight"], "700");
 		assert.equal(vars["--font-prose"], undefined, "no font override at factory");
 		assert.equal(vars["--font-title"], undefined, "CMU stays");
 	});
@@ -65,7 +65,7 @@ describe("appearanceVars — the mapping the provider applies", () => {
 		const vars = appearanceVars(resolveAppearance({ fontFamily: "JetBrains Mono" }), mocha);
 		assert.equal(
 			vars["--font-prose"],
-			`"JetBrains Mono", var(--font-jetbrains), var(--font-sans3), ui-sans-serif, system-ui, sans-serif`,
+			`"JetBrains Mono", var(--font-jetbrains), "lh-cmu", serif`,
 		);
 	});
 
@@ -84,7 +84,7 @@ describe("appearanceVars — the mapping the provider applies", () => {
 		assert.equal(vars["--background"], "#101820");
 		assert.equal(vars["--card"], mocha.colors.surface, "un-overridden colors stay the theme's");
 		assert.equal(vars["--lh-warning"], "#fab387");
-		assert.equal(vars["--font-prose"], `"Georgia", var(--font-sans3), ui-sans-serif, system-ui, sans-serif`);
+		assert.equal(vars["--font-prose"], `"Georgia", "lh-cmu", serif`);
 		assert.equal(vars["--lh-prose-size"], "18px");
 		assert.equal(vars["--font-title"], "var(--font-prose)", "serif off → titles follow the prose font");
 		assert.equal(vars["--lh-heading-weight"], "700");
@@ -116,7 +116,7 @@ describe("staleVarNames — the removal half of application (owner repro: resets
 		assert.ok(stale.includes("--font-prose"));
 		assert.ok(stale.includes("--font-title"), "serif toggle back ON must clear the title override");
 		assert.ok(!stale.includes("--background"), "a theme always sets every color");
-		assert.equal(factory["--background"], "#141414", "an emptied background is the theme's again");
+		assert.equal(factory["--background"], "#d9d1ba", "an emptied background is the theme's again");
 		assert.ok(!stale.includes("--lh-prose-size"), "always-applied tokens never go stale");
 	});
 
@@ -282,20 +282,15 @@ describe("classifyKeys — the Keys section's two-group projection", () => {
 	it("OpenRouter is UN-pinned (wave-5 owner ruling): no row when absent, a row when stored", () => {
 		const none = classifyKeys([], providers);
 		assert.equal(none.providerRows.length, 0); // nothing synthesized
-		assert.ok(none.addable.some((p) => p.id === "openrouter")); // it's just an Add option
 		const stored = classifyKeys([synth("OPENROUTER_API_KEY", true)], providers);
 		assert.equal(stored.providerRows.length, 1);
 		assert.equal(stored.providerRows[0]!.id, "OPENROUTER_API_KEY");
-		assert.ok(!stored.addable.some((p) => p.id === "openrouter"));
 	});
 
-	it("stored provider keys land in providerRows; the Add dropdown drops them", () => {
+	it("stored provider keys land in providerRows", () => {
 		const out = classifyKeys([synth("GROQ_API_KEY", true)], providers);
 		assert.equal(out.providerRows.length, 1);
 		assert.equal(out.providerRows[0]!.id, "GROQ_API_KEY");
-		// the Add dropdown no longer offers groq
-		assert.ok(!out.addable.some((p) => p.id === "groq"));
-		assert.ok(out.addable.some((p) => p.id === "deepseek"));
 	});
 
 	it("curated tool ids always render (synthesized when absent)", () => {
@@ -316,11 +311,6 @@ describe("classifyKeys — the Keys section's two-group projection", () => {
 		const out = classifyKeys([synth("PLANS_LOGIN_TOKEN", true)], providers);
 		assert.equal(out.unknownRows.length, 1);
 		assert.equal(out.providerRows.length, 0);
-	});
-
-	it("providers seam absent = addable empty, nothing crashes", () => {
-		const out = classifyKeys([], undefined);
-		assert.deepEqual(out.addable, []);
 	});
 });
 

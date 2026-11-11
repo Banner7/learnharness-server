@@ -59,10 +59,16 @@ async function observeProcess(
     ...(message === undefined ? {} : { message }),
   });
 
+  // Minimal environment: the test program never sees server secrets. Cast
+  // because app-level typings may mark variables like NODE_ENV as required.
+  const env = { PATH: process.env.PATH ?? "", HOME: cwd, TMPDIR: cwd } as Partial<NodeJS.ProcessEnv> as NodeJS.ProcessEnv;
+  if (process.env.LANG !== undefined) env.LANG = process.env.LANG;
+
   let child;
   try {
     child = spawn(tests.program, tests.args, {
       cwd,
+      env,
       shell: false,
       // A separate POSIX process group lets us kill descendants even when the
       // driver exits first and its descendants still hold our output pipes.

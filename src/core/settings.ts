@@ -37,7 +37,7 @@ import type { ChatSettings } from "./contracts/chat.ts";
 import { isSearchEngineId, type SearchEngineId } from "./search.ts";
 import { isDictationLanguage, type DictationLanguage } from "./dictation.ts";
 import { parseFileAccessSettings, type FileAccessSettings } from "./file-access.ts";
-import { COLOR_OVERRIDE_KEYS, isThemeId, type AppearanceColorOverrides } from "./themes.ts";
+import { COLOR_OVERRIDE_KEYS, DEFAULT_THEME_ID, isThemeId, type AppearanceColorOverrides } from "./themes.ts";
 
 /** The schema version this code understands. Bump ONLY for breaking shape
  *  changes (a field renamed/meaning changed); pure additions never bump. */
@@ -219,98 +219,6 @@ export interface ModelsSettings {
 	vision?: ModelSlot;
 }
 
-// ─── Custom OpenAI-compatible endpoint ───────────────────────────────────────
-// ONE user-configured OpenAI-compatible server (vLLM / Ollama / a proxy). It is
-// one more provider in the Keys list, keyed by a base URL instead of an env var.
-// NON-SECRET config only (base URL + discovered model ids); the API key is a
-// secret in the auth store, never here. Registered into pi-ai as a normal
-// provider (server/custom-provider.ts).
-
-/** Budget fallbacks only; custom endpoint pricing is unknown. */
-export const CUSTOM_MODEL_DEFAULT_CONTEXT_WINDOW = 8192;
-export const CUSTOM_MODEL_DEFAULT_MAX_TOKENS = 4096;
-
-/** Custom budgets accept every positive integer, including small output caps. */
-export const CUSTOM_MODEL_PIN_FLOOR = 1;
-
-/** One discovered custom model. `image`/`reasoning`/`context`/`maxTokens` are
- *  detected from the endpoint's /models metadata; anything it omits falls back
- *  to a default. */
-export interface CustomModel {
-	id: string;
-	/** Accepts image input (Vision-capable). Default false (text-only). */
-	image?: boolean;
-	/** Accepts a reasoning effort (thinking). Default false → the only
-	 *  thinking level is "off", exactly like a non-reasoning built-in. */
-	reasoning?: boolean;
-	/** Context window in tokens, from the endpoint. Absent → the default. */
-	context?: number;
-	/** Max output tokens, from the endpoint. Absent → the default. */
-	maxTokens?: number;
-}
-
-/** A user pin for one custom model: it beats what the endpoint publishes
- *  (owner ruling — explicit user intent wins; a local server's number is
- *  often wrong or absent). Absent field = no pin. `reasoning` is tri-state:
- *  true declares reasoning support, false removes that declaration, absent
- *  uses discovery. This is NOT a backend execution/disable switch. */
-export interface CustomModelOverride {
-	context?: number;
-	maxTokens?: number;
-	reasoning?: boolean;
-}
-
-/** The single custom endpoint's stored config (delta section). */
-export interface CustomProviderSettings {
-	/** Server-owned random authorization nonce; never a credential hash. */
-	credentialBindingId?: string;
-	/** Explicit authentication intent; never inferred from a saved key. */
-	authMode?: "keyless" | "apiKey";
-	/** Normalized base URL (see normalizeBaseUrl). Empty/absent = not configured. */
-	baseUrl?: string;
-	/** Models this endpoint offers: advertised ids merged with the typed
-	 *  manual ones (rewritten on connect; a failed probe keeps the same
-	 *  endpoint's last snapshot). */
-	models?: CustomModel[];
-	/** User pins keyed by model id — pure user intent, never rewritten by
-	 *  discovery, pruned on connect to the ids that connect offers. */
-	overrides?: Record<string, CustomModelOverride>;
-	/** Model ids the user typed by hand, for an endpoint that publishes no
-	 *  usable /models list. Kept apart from the snapshot so a reconnect can
-	 *  re-merge them after discovery refreshes. */
-	manualModels?: string[];
-}
-
-export function parseModelIds(raw: unknown): string[] {
-	const items = typeof raw === "string" ? raw.split(/[\s,]+/) : Array.isArray(raw) ? raw : [];
-	const ids = items.filter((v): v is string => typeof v === "string").map((v) => v.trim()).filter(Boolean);
-	return [...new Set(ids)];
-}
-
-/** Canonical base-URL form (single source): trims, requires absolute http(s),
- *  drops trailing slashes. Returns "" for anything invalid ("not configured"). */
-export function normalizeBaseUrl(raw: string): string {
-	const value = raw.trim();
-	if (!value) return "";
-	let url: URL;
-	try {
-		url = new URL(value);
-	} catch {
-		return "";
-	}
-	if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-	if (url.username || url.password || url.search || url.hash || value.includes("?") || value.includes("#")) return "";
-	return url.toString().replace(/\/+$/, "");
-}
-
-/** THE single source of "is the custom endpoint usable?": a non-empty base URL.
- *  Key presence is deliberately excluded (keyless local servers are allowed). */
-export function customProviderUsable(
-	cp: CustomProviderSettings | undefined,
-): cp is CustomProviderSettings & { baseUrl: string } {
-	return Boolean(cp?.baseUrl);
-}
-
 /** First-run gate (model-slots wave, owner 2026-09-20): the app refuses
  *  to start chats until the user has actively picked all three slots —
  *  there ARE no defaults for 33 providers; a configured app is one whose
@@ -334,13 +242,6 @@ export const ROLE_SLOT: Readonly<Record<ModelRole, ModelSlotName>> = {
 	pdfReader: "vision",
 	sideQuestion: "strong", // the conversation chain, like prober/teacher (resolveSideQuestionSpec)
 };
-
-/** General settings — app-level behavior. Version DISPLAY and plans login
- *  live outside the record (package.json / auth.json) by owner decision. */
-export interface GeneralSettings {
-	/** Automatic startup/24h update checks (default ON). Manual checks bypass this. */
-	autoUpdate?: boolean;
-}
 
 /** One app-wide dictation preference, shared by every composer. */
 export interface DictationSettings {
@@ -387,7 +288,7 @@ export interface AgentSettings {
 
 /** Markdown-rendering knobs — the bare-bones set (owner decision). */
 export interface MdRenderingSettings {
-	/** Heading font weight (100–900, default 900). CSS resolves the nearest
+	/** Heading font weight (100–900, default 700). CSS resolves the nearest
 	 *  available weight of the chosen font — no font introspection needed. */
 	headingWeight?: number;
 	/** Color for **bold** spans (default #ffffff). */
@@ -409,15 +310,15 @@ export interface AppearanceSettings {
 	/** Per-color overrides on top of the theme (null/absent = the theme's).
 	 *  Preserved across theme switches. Bold/italic live in mdRendering. */
 	colors?: AppearanceColorOverrides;
-	/** The main reading font (everything that is Source Sans 3 today), by
-	 *  name — user-chosen from installed fonts. null = Source Sans 3. */
+	/** The main reading font, by name — user-chosen from installed fonts
+	 *  or the bundled ones. null = Computer Modern Serif (the bundled CMU). */
 	fontFamily?: string | null;
-	/** Reading font size in px (12–24, default 16). Headings render as
+	/** Reading font size in px (12–24, default 17). Headings render as
 	 *  multiples of this, so one knob scales the document coherently. */
 	proseFontSize?: number;
 	/** Permit normal font ligatures in code (including inline code and code editors). Default false; prose is unaffected. */
 	codeLigatures?: boolean;
-	/** Session names in CMU Serif (default true — today's look). */
+	/** Session names in CMU Serif (default true). */
 	sessionNameSerif?: boolean;
 	mdRendering?: MdRenderingSettings;
 }
@@ -492,15 +393,13 @@ export interface CompactionSettings {
  *  preserved verbatim by the sanitizer (forward-compat with newer records). */
 export interface UserSettings {
 	version: number;
-	general?: GeneralSettings;
 	dictation?: DictationSettings;
-	/** Explicit app-wide opt-in; absent/invalid is off, including older records. */
+	/** Server-managed opt-in, set out of band in the settings file; there is
+	 *  no browser write surface. Absent/invalid is off, including older records. */
 	claudeCode?: { enabled?: boolean };
 	agent?: AgentSettings;
 	/** The strong/cheap/vision model slots (model slots wave, 2026-09-20). */
 	models?: ModelsSettings;
-	/** The custom OpenAI-compatible endpoint (non-secret config only). */
-	customProvider?: CustomProviderSettings;
 	appearance?: AppearanceSettings;
 	graph?: GraphSettings;
 	compaction?: CompactionSettings;
@@ -515,7 +414,6 @@ export interface UserSettings {
 export interface FactorySettings {
 	version: number;
 	agent: Required<Pick<AgentSettings, "workerRequestConcurrency">>;
-	general: Required<GeneralSettings>;
 	dictation: Required<DictationSettings>;
 	appearance: {
 		theme: string;
@@ -538,17 +436,16 @@ export interface FactorySettings {
 export const FACTORY_SETTINGS: FactorySettings = {
 	version: CURRENT_SETTINGS_VERSION,
 	agent: { workerRequestConcurrency: 8 },
-	general: { autoUpdate: true },
 	dictation: { language: "en" },
 	appearance: {
-		theme: "default",
+		theme: DEFAULT_THEME_ID, // Automatic: Kasumi Sand/Ink by the system
 		background: null, // null = the active theme's background
 		colors: {}, // no overrides: every color is the theme's
-		fontFamily: null, // Source Sans 3
-		proseFontSize: 16,
+		fontFamily: null, // Computer Modern Serif
+		proseFontSize: 17,
 		codeLigatures: false,
 		sessionNameSerif: true,
-		mdRendering: { headingWeight: 900, boldColor: null, italicColor: null },
+		mdRendering: { headingWeight: 700, boldColor: null, italicColor: null },
 	},
 	graph: { enabled: true, rendering: true, extractionChunkTokens: 4096 },
 	compaction: { thresholdTokens: 150_000, includeReasoning: false },
@@ -581,13 +478,6 @@ function sanitizeHexOrNull(value: unknown): string | null {
 
 const boolOrDrop = (value: unknown): boolean | undefined =>
 	typeof value === "boolean" ? value : undefined;
-
-function sanitizeGeneral(raw: Record<string, unknown>): GeneralSettings {
-	const out: GeneralSettings = {};
-	const autoUpdate = boolOrDrop(raw.autoUpdate);
-	if (autoUpdate !== undefined) out.autoUpdate = autoUpdate;
-	return out;
-}
 
 const THINKING_LEVELS: readonly ThinkingLevel[] = [
 	"off",
@@ -637,81 +527,6 @@ function sanitizeModels(raw: Record<string, unknown>): ModelsSettings {
 	}
 	return out;
 }
-
-/** A positive integer, or undefined — keeps only meaningful token counts. */
-function positiveInt(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
-}
-
-/** One pin, clamped up to the floor (clamp-never-reject on read). */
-function sanitizeCustomModelOverride(raw: unknown): CustomModelOverride | undefined {
-	if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return undefined;
-	const rec = raw as Record<string, unknown>;
-	const out: CustomModelOverride = {};
-	const context = positiveInt(rec.context);
-	if (context) out.context = Math.max(CUSTOM_MODEL_PIN_FLOOR, context);
-	const maxTokens = positiveInt(rec.maxTokens);
-	if (maxTokens) out.maxTokens = Math.max(CUSTOM_MODEL_PIN_FLOOR, maxTokens);
-	if (typeof rec.reasoning === "boolean") out.reasoning = rec.reasoning;
-	return Object.keys(out).length ? out : undefined;
-}
-
-/** THE pins map + THE prune law: well-formed entries only, ids trimmed, and
- *  when `liveIds` is given every entry for a model the endpoint no longer
- *  advertises drops. POST passes the discovered ids, PATCH the stored list. */
-export function sanitizeCustomModelOverrides(
-	raw: unknown,
-	liveIds?: Iterable<string>,
-): Record<string, CustomModelOverride> {
-	const out: Record<string, CustomModelOverride> = {};
-	if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return out;
-	const live = liveIds ? new Set(liveIds) : undefined;
-	for (const [key, value] of Object.entries(raw)) {
-		const id = key.trim();
-		if (!id || (live && !live.has(id))) continue;
-		const pin = sanitizeCustomModelOverride(value);
-		if (pin) Object.defineProperty(out, id, { value: pin, enumerable: true, configurable: true, writable: true });
-	}
-	return out;
-}
-
-/** The customProvider section: normalized base URL (invalid → dropped) and
- *  discovered models (ids trimmed, dupes/empties dropped; image kept only when
- *  true; token counts only as positive ints). Clamp-never-reject. */
-function sanitizeCustomProvider(raw: Record<string, unknown>): CustomProviderSettings {
-	const out: CustomProviderSettings = {};
-	if (typeof raw.credentialBindingId === "string" && /^[a-f0-9]{32}$/.test(raw.credentialBindingId)) out.credentialBindingId = raw.credentialBindingId;
-	if (raw.authMode === "keyless" || raw.authMode === "apiKey") out.authMode = raw.authMode;
-	if (typeof raw.baseUrl === "string") {
-		const base = normalizeBaseUrl(raw.baseUrl);
-		if (base) out.baseUrl = base;
-	}
-	if (Array.isArray(raw.models)) {
-		const byId = new Map<string, CustomModel>();
-		for (const m of raw.models) {
-			if (typeof m !== "object" || m === null) continue;
-			const rec = m as Record<string, unknown>;
-			if (typeof rec.id !== "string") continue;
-			const id = rec.id.trim();
-			if (!id) continue;
-			const model: CustomModel = { id };
-			if (rec.image === true) model.image = true;
-			if (rec.reasoning === true) model.reasoning = true;
-			const context = positiveInt(rec.context);
-			if (context) model.context = context;
-			const maxTokens = positiveInt(rec.maxTokens);
-			if (maxTokens) model.maxTokens = maxTokens;
-			byId.set(id, model);
-		}
-		out.models = [...byId.values()];
-	}
-	const overrides = sanitizeCustomModelOverrides(raw.overrides);
-	if (Object.keys(overrides).length) out.overrides = overrides;
-	const manualModels = parseModelIds(raw.manualModels);
-	if (manualModels.length) out.manualModels = manualModels;
-	return out;
-}
-
 function sanitizeBooleanMap(raw: unknown): Record<string, boolean> | undefined {
 	if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return undefined;
 	const out: Record<string, boolean> = {};
@@ -850,6 +665,8 @@ function sanitizeCompaction(raw: Record<string, unknown>): CompactionSettings {
 	return out;
 }
 
+const DEAD_SETTINGS_KEYS: Record<string, true> = { chat: true, general: true, customProvider: true };
+
 /**
  * Coerce arbitrary JSON (disk file, network body) into a valid delta record:
  * known fields validated strictly (invalid ones drop/clamp per module doc),
@@ -862,9 +679,6 @@ export function sanitizeUserSettings(raw: unknown): UserSettings | null {
 	const out: UserSettings = {
 		version: typeof r.version === "number" && Number.isInteger(r.version) && r.version >= 1 ? r.version : CURRENT_SETTINGS_VERSION,
 	};
-	if (r.general !== null && typeof r.general === "object" && !Array.isArray(r.general)) {
-		out.general = sanitizeGeneral(r.general as Record<string, unknown>);
-	}
 	if (r.dictation !== undefined) {
 		const raw = r.dictation;
 		out.dictation = raw !== null && typeof raw === "object" && !Array.isArray(raw) &&
@@ -888,22 +702,20 @@ export function sanitizeUserSettings(raw: unknown): UserSettings | null {
 		const models = sanitizeModels(r.models as Record<string, unknown>);
 		if (Object.keys(models).length) out.models = models;
 	}
-	if (r.customProvider !== null && typeof r.customProvider === "object" && !Array.isArray(r.customProvider)) {
-		out.customProvider = sanitizeCustomProvider(r.customProvider as Record<string, unknown>);
-	}
 	if (r.graph !== null && typeof r.graph === "object" && !Array.isArray(r.graph)) {
 		out.graph = sanitizeGraph(r.graph as Record<string, unknown>);
 	}
 	if (r.compaction !== undefined && r.compaction !== null && typeof r.compaction === "object") {
 		out.compaction = sanitizeCompaction(r.compaction as Record<string, unknown>);
 	}
-	// Unknown top-level keys ride along untouched (forward-compat). One
-	// known-DEAD key is stripped instead of riding: `chat` (the old
-	// default-settings section) died with per-session models (owner,
-	// 2026-09-28) — a fossil copy on disk must never resurrect through
-	// reads (and any later write flushes it from the file for good).
+	// Unknown top-level keys ride along untouched (forward-compat). Known-DEAD
+	// keys are stripped instead of riding: `chat` (the old default-settings
+	// section) died with per-session models (owner, 2026-09-28); `general`
+	// (update checks) and `customProvider` (the settings-backed endpoint,
+	// replaced by LH_CUSTOM_PROVIDERS) died with the server port. A fossil copy
+	// on disk must never resurrect through reads (a later write flushes it).
 	for (const [key, value] of Object.entries(r)) {
-		if (key === "chat") continue;
+		if (Object.hasOwn(DEAD_SETTINGS_KEYS, key)) continue;
 		if (!(key in out)) out[key] = value;
 	}
 	return out;

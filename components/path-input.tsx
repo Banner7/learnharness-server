@@ -6,13 +6,12 @@ import { FilePathChip } from "./file-path-chip";
 import { CitationChip } from "./citation-chip";
 import { cn } from "../lib/utils";
 import {
-	adjacentPathRange, atomicPathRange, clampPathSelection, insertCitation, insertFilePaths, locateToken,
+	adjacentPathRange, atomicPathRange, clampPathSelection, insertCitation, locateToken,
 	normalizePathEdit, normalizePathInputValue, pathInputStaticRange, PathInputHistory, readPathInput, readPathSelection, renderPathInput,
 	replacePathSelection, restorePathSelection,
 	type ChipHost, type PathEditSnapshot, type TextSelection,
 } from "./path-input-dom";
 
-export const INSERT_FILE_PATHS_EVENT = "lh:insert-file-paths";
 /** detail: { link, onInserted?(range) } — insert a citation link at the saved caret. */
 export const INSERT_CITATION_EVENT = "lh:insert-citation";
 /** detail: { start, end, previous, source, spaceBefore?, spaceAfter? } —
@@ -27,8 +26,7 @@ export type PathInputProps = Omit<React.HTMLAttributes<HTMLDivElement>, "childre
 	onValueChange: (value: string) => void;
 	placeholder?: string;
 	autoFocus?: boolean;
-	defaultDropTarget?: boolean;
-	/** Opt out of host file insertion and drop routing; normal text editing remains. */
+	/** Opt out of file-path field cycling (data-file-path-input); normal text editing remains. */
 	fileInsertion?: boolean;
 	/** Native text-input semantics: strip CR/LF and leave Enter to the caller. */
 	singleLine?: boolean;
@@ -44,13 +42,13 @@ type Controller = {
  * views of it. React never reconciles the editable DOM after a native mutation.
  */
 export const PathInput = React.forwardRef<HTMLDivElement, PathInputProps>(function PathInput({
-	value, onValueChange, placeholder, autoFocus, defaultDropTarget = false, fileInsertion = true, singleLine = false, className,
+	value, onValueChange, placeholder, autoFocus, fileInsertion = true, singleLine = false, className,
 	onKeyDown, onFocus, onBlur, onInput, onPaste, onCopy, onCut,
 	onCompositionStart, onCompositionEnd, ...props
 }, forwardedRef) {
 	const rootRef = React.useRef<HTMLDivElement>(null);
 	const controllerRef = React.useRef<Controller | null>(null);
-	const callbacks = React.useRef({ onValueChange, singleLine, fileInsertion });
+	const callbacks = React.useRef({ onValueChange, singleLine });
 	const composing = React.useRef(false);
 	const [chips, setChips] = React.useState<ChipHost[]>([]);
 	// Keep this text child immutable: SSR/hydration gets the complete draft,
@@ -58,7 +56,7 @@ export const PathInput = React.forwardRef<HTMLDivElement, PathInputProps>(functi
 	const initial = React.useRef({ value: normalizePathInputValue(value, singleLine), autoFocus, singleLine });
 
 	React.useImperativeHandle(forwardedRef, () => rootRef.current!, []);
-	React.useLayoutEffect(() => { callbacks.current = { onValueChange, singleLine, fileInsertion }; }, [onValueChange, singleLine, fileInsertion]);
+	React.useLayoutEffect(() => { callbacks.current = { onValueChange, singleLine }; }, [onValueChange, singleLine]);
 
 	React.useLayoutEffect(() => {
 		const root = rootRef.current!;
@@ -68,7 +66,6 @@ export const PathInput = React.forwardRef<HTMLDivElement, PathInputProps>(functi
 		let beforeEdit: PathEditSnapshot | null = null;
 		let compositionStart: PathEditSnapshot | null = null;
 		let pendingExternal: string | null = null;
-		let pendingPaths: string[] = [];
 		let pendingPaste: string[] = [];
 		let pendingCitations: InsertCitationDetail[] = [];
 		let mounted = true;
@@ -104,17 +101,6 @@ export const PathInput = React.forwardRef<HTMLDivElement, PathInputProps>(functi
 			const next = history[direction](snapshot());
 			if (next) change(next, false);
 		}
-		function stage(paths: string[]) {
-			if (composing.current) { pendingPaths.push(...paths); return; }
-			remember();
-			// Global drop may have moved focus: saved selection is still authoritative.
-			let next: PathEditSnapshot;
-			try { next = insertFilePaths(current, saved, paths); }
-			catch { return; } // Invalid event payloads never mutate learner text.
-			change(next);
-			root.focus();
-			restorePathSelection(root, saved);
-		}
 		function cite(detail: InsertCitationDetail) {
 			if (composing.current) { pendingCitations.push(detail); return; }
 			remember();
@@ -143,11 +129,6 @@ export const PathInput = React.forwardRef<HTMLDivElement, PathInputProps>(functi
 			const value = current.slice(0, start) + source + current.slice(end);
 			const caret = start + source.length + (detail.source === null ? 0 : 1);
 			change({ value, selection: { anchor: Math.min(caret, value.length), focus: Math.min(caret, value.length) } });
-		}
-		function insertEvent(event: Event) {
-			if (!callbacks.current.fileInsertion) return;
-			const paths: unknown = (event as CustomEvent<unknown>).detail;
-			if (Array.isArray(paths) && paths.every((path) => typeof path === "string")) stage(paths);
 		}
 		function beforeInput(event: InputEvent) {
 			if (composing.current || event.isComposing) return;
@@ -261,7 +242,6 @@ export const PathInput = React.forwardRef<HTMLDivElement, PathInputProps>(functi
 				if (reset) history.reset();
 				change({ value: nextValue, selection }, !reset, previous, notify);
 				if (pendingPaste.length) { const text = pendingPaste.join(""); pendingPaste = []; replace(text); }
-				if (pendingPaths.length) { const paths = pendingPaths; pendingPaths = []; stage(paths); }
 				if (pendingCitations.length) { const citations = pendingCitations; pendingCitations = []; citations.forEach(cite); }
 			});
 		}
@@ -284,7 +264,6 @@ export const PathInput = React.forwardRef<HTMLDivElement, PathInputProps>(functi
 		};
 		paint(saved, false);
 		if (initial.current.autoFocus) { root.focus(); restorePathSelection(root, saved); }
-		root.addEventListener(INSERT_FILE_PATHS_EVENT, insertEvent);
 		root.addEventListener(INSERT_CITATION_EVENT, insertCitationEvent);
 		root.addEventListener(UPDATE_CITATION_EVENT, updateCitationEvent);
 		root.addEventListener("beforeinput", beforeInput);
@@ -300,7 +279,6 @@ export const PathInput = React.forwardRef<HTMLDivElement, PathInputProps>(functi
 			mounted = false;
 			composing.current = false;
 			controllerRef.current = null;
-			root.removeEventListener(INSERT_FILE_PATHS_EVENT, insertEvent);
 			root.removeEventListener(INSERT_CITATION_EVENT, insertCitationEvent);
 			root.removeEventListener(UPDATE_CITATION_EVENT, updateCitationEvent);
 			root.removeEventListener("beforeinput", beforeInput);
@@ -329,7 +307,6 @@ export const PathInput = React.forwardRef<HTMLDivElement, PathInputProps>(functi
 			suppressContentEditableWarning
 			data-file-path-input={fileInsertion ? "" : undefined}
 			data-empty={initial.current.value.length === 0 ? "true" : "false"}
-			data-file-path-default={fileInsertion && defaultDropTarget ? "" : undefined}
 			data-placeholder={placeholder}
 			className={cn("block w-full min-w-0 outline-none data-[empty=true]:before:pointer-events-none data-[empty=true]:before:text-muted-foreground data-[empty=true]:before:content-[attr(data-placeholder)]", singleLine ? "whitespace-pre break-normal overflow-x-auto overflow-y-hidden" : "whitespace-pre-wrap break-words overflow-y-auto", className)}
 			onKeyDown={(event) => {

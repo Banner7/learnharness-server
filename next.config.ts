@@ -5,15 +5,14 @@ import { MAX_IMPORT_BODY_BYTES } from "./lib/notes-import-limits.ts";
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string; homepage: string };
 
 const nextConfig: NextConfig = {
-	// Public build metadata only; no new runtime Electron version API.
+	// Public build metadata only.
 	env: { LH_VERSION: pkg.version, LH_HOMEPAGE: pkg.homepage },
 	// Leave multipart headroom above the 25 MiB file allowance. This is a
 	// proxy buffer, not a rejection gate: the import route also bounds reads,
 	// validates actual file bytes and handles incomplete multipart bodies.
 	experimental: { proxyClientMaxBodySize: MAX_IMPORT_BODY_BYTES },
-	// Desktop target (Electron wrapper, 2026-09-17): standalone output = a
-	// self-contained .next/standalone/server.js the Electron shell spawns
-	// on 127.0.0.1. Harmless for plain web deploys (extra build output).
+	// Standalone output = a self-contained .next/standalone/server.js
+	// (extra build output; `next start` keeps working).
 	// The manual copies the docs require — public/ and .next/static — are
 	// done by scripts/build-server.mjs.
 	output: "standalone",
@@ -42,13 +41,10 @@ const nextConfig: NextConfig = {
 	// Turbopack tracer: that still prunes gcp-metadata and its private deps.
 	// Keep the narrow closure workaround below AND the native runtime gate.
 	// Real SDK data/ directories still need their explicit includes too.
-	// The recursive-DMG payload (repo dist/ swept into the bundle, shipping
-	// the previous build inside the next) is instead prevented by the
-	// desktop:dist clean step AND targeted post-trace curation in
-	// scripts/build-server.mjs (2026-10-11): remove standalone-root dist/
-	// and node_modules/electron/ (the demo helper's DEV runtime; packaged
-	// helpers use the app's own binary). Runtime dependencies' dist/ dirs
-	// stay intact, and the script guards against leaked data/keys.
+	// Repo dist/ swept into the bundle is instead removed by targeted
+	// post-trace curation in scripts/build-server.mjs (2026-10-11).
+	// Runtime dependencies' dist/ dirs stay intact, and the script guards
+	// against leaked data/keys.
 	outputFileTracingExcludes: {
 		"*": [
 			"**/data/**/*",
@@ -84,7 +80,7 @@ const nextConfig: NextConfig = {
 			// resolves to exactly one Skia binary per build.
 			"node_modules/@napi-rs/canvas-*/**/*",
 			// Pi-compatible image resizing runs in an unbundled worker. Photon
-			// loads its colocated WASM through Node, also in packaged Electron.
+			// loads its colocated WASM through Node.
 			// Side questions (2026-11-02): the side model's base prompt is read
 			// from disk per ask — a directory no agent-composition read names.
 			"src/agent/prompts/side-chat/*.md",
@@ -96,7 +92,7 @@ const nextConfig: NextConfig = {
 			"node_modules/@resvg/resvg-js-*/**/*",
 			"node_modules/@earendil-works/pi-ai/dist/providers/data/**/*",
 			// Public native OAuth factories load these flows through variable imports.
-			// Electron main uses the same standalone SDK; the offline runtime gate
+			// The offline runtime gate
 			// evaluates their real toAuth paths without login or provider requests.
 			"node_modules/@earendil-works/pi-ai/dist/auth/oauth/{load,github-copilot,xai,device-code}.js",
 			"node_modules/@earendil-works/pi-ai/dist/utils/sleep.js",

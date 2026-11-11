@@ -30,6 +30,24 @@ export function createSideQuestionActions({ open }: { open: (args: SideThreadOpe
 		},
 	}];
 }
+/** Where the side conversation may float or dock; below it, the phone
+ *  sheet (full width, bottom edge, no drag or resize). */
+const WIDE_QUERY = "(min-width: 900px)";
+
+/** True from WIDE_QUERY up (the floating window and the docked panel). */
+export function useWideSideThread(): boolean {
+	const [wide, setWide] = useState(true);
+	useEffect(() => {
+		const query = window.matchMedia?.(WIDE_QUERY);
+		if (!query) return;
+		const sync = () => setWide(query.matches);
+		sync();
+		query.addEventListener("change", sync);
+		return () => query.removeEventListener("change", sync);
+	}, []);
+	return wide;
+}
+
 export function sideThreadPlaceholder(state: SideThreadState): string {
 	return state.pendingPassage ? "Ask about this passage…" : state.messages.length ? "Ask a follow-up…" : "Ask a side question…";
 }
@@ -70,8 +88,10 @@ function SideInputMeter({ levelRef }: { levelRef?: { current: number } }) {
 
 /** #451's companion body, rendering the durable raw messages supplied by
  * #487's service. There is no sharing toggle, generated note, or deletion. */
-export function SideThreadBody({ state, chatId, draft, readDraft, dictation, onDraftChange, onAsk, onStop, onExpand, onFloat, onClose, onCurrentStep, onDragStart }: {
+export function SideThreadBody({ state, chatId, draft, readDraft, dictation, onDraftChange, onAsk, onStop, onExpand, onFloat, onClose, onCurrentStep, onDragStart, canDock = true }: {
 	state: SideThreadState; chatId?: string; onDragStart?: (event: React.PointerEvent<HTMLElement>) => void;
+	/** False on the phone sheet: there is no room to dock. */
+	canDock?: boolean;
 } & SideThreadHandlers) {
 	const controller = useOptionalInteractionLayers();
 	const [question, setQuestion] = useState(draft || state.failedQuestion || "");
@@ -120,11 +140,11 @@ export function SideThreadBody({ state, chatId, draft, readDraft, dictation, onD
 				{onDragStart && <GripVertical aria-hidden="true" className="-ml-1 size-3.5 text-muted-foreground" />}
 				<MessageCircleQuestion aria-hidden="true" className="size-3.5 text-muted-foreground" />
 				<span className="flex-1 font-ui text-xs text-muted-foreground">Side question</span>
-				<Button type="button" size="icon-xs" variant="ghost" aria-label={state.mode === "popover" ? "Dock side conversation" : "Float side conversation"}
+				{canDock && <Button type="button" size="icon-xs" variant="ghost" className="pointer-coarse:size-11" aria-label={state.mode === "popover" ? "Dock side conversation" : "Float side conversation"}
 					title={state.mode === "popover" ? "Pin to side" : "Unpin to float"} onClick={state.mode === "popover" ? onExpand : onFloat}>
 					{state.mode === "popover" ? <Pin aria-hidden="true" /> : <PinOff aria-hidden="true" />}
-				</Button>
-				<Button type="button" size="icon-xs" variant="ghost" aria-label="Close side conversation" title="Close" onClick={onClose}><X aria-hidden="true" /></Button>
+				</Button>}
+				<Button type="button" size="icon-xs" variant="ghost" className="pointer-coarse:size-11" aria-label="Close side conversation" title="Close" onClick={onClose}><X aria-hidden="true" /></Button>
 			</div>
 			<div ref={scrollRef} data-side-scroll="" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto font-prose">
 				{state.messages.map((message) => (
@@ -170,7 +190,7 @@ export function SideThreadBody({ state, chatId, draft, readDraft, dictation, onD
 					</div>
 					<button type="button" aria-label={state.answering ? "Stop side answer" : "Send side question"}
 						disabled={!state.answering && !question.trim() && !dictation?.active} onClick={state.answering ? onStop : () => void submit()}
-						className={`flex size-9 shrink-0 items-center justify-center rounded-[10px] transition-colors ${state.answering ? "bg-secondary text-foreground hover:bg-accent" : "bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"}`}>
+						className={`flex size-9 shrink-0 items-center justify-center rounded-[10px] transition-colors pointer-coarse:size-11 ${state.answering ? "bg-secondary text-foreground hover:bg-accent" : "bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"}`}>
 						{state.answering ? <Square aria-hidden="true" className="size-4" /> : <CornerDownLeft aria-hidden="true" className="size-5" />}
 					</button>
 				</div>
@@ -189,16 +209,7 @@ function anchorRect(anchor: SideThreadAnchor, composer: () => HTMLElement | null
 }
 
 function sideThreadViewport(): SideThreadViewport {
-	const viewport: SideThreadViewport = { width: window.innerWidth, height: window.innerHeight };
-	const root = document.documentElement;
-	if (root.classList.contains("lh-electron") && root.dataset.lhPlatform === "darwin") {
-		const css = getComputedStyle(root);
-		const zoom = Number.parseFloat(css.getPropertyValue("--lh-zoom")) || 1;
-		const width = Number.parseFloat(css.getPropertyValue("--lh-traffic-lights-width")) / zoom;
-		const height = Number.parseFloat(css.getPropertyValue("--lh-traffic-lights-height")) / zoom;
-		if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) viewport.trafficLights = { width, height };
-	}
-	return viewport;
+	return { width: window.innerWidth, height: window.innerHeight };
 }
 
 const RESIZE_HANDLES: { edge: SideThreadResizeEdge; className: string }[] = [
@@ -214,10 +225,12 @@ const RESIZE_HANDLES: { edge: SideThreadResizeEdge; className: string }[] = [
 
 /** Retains #451's anchored placement and draggable header; all eight
  * borders/corners resize the floating window without changing the dock.
+ * Below WIDE_QUERY it is a full-width bottom sheet instead (phone wave).
  * Render as native session content, not a body portal: whole-session surfaces
  * must cover/inactivate this companion without closing it or losing its draft. */
 export function SideThreadPopover({ state, chatId, composer, ...handlers }: { state: SideThreadState; chatId: string; composer: () => HTMLElement | null } & SideThreadHandlers) {
 	const controller = useOptionalInteractionLayers();
+	const wide = useWideSideThread();
 	const boxRef = useRef<HTMLDivElement>(null);
 	const [placement, setPlacement] = useState<SideThreadPlacement | null>(null);
 	const [frame, setFrame] = useState<SideThreadFrame | null>(null);
@@ -247,10 +260,8 @@ export function SideThreadPopover({ state, chatId, composer, ...handlers }: { st
 		place();
 		const observer = new MutationObserver(rePlace);
 		if (boxRef.current) observer.observe(boxRef.current, { childList: true, subtree: true, characterData: true });
-		const chromeObserver = new MutationObserver(rePlace);
-		chromeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class", "data-lh-platform"] });
 		window.addEventListener("scroll", rePlace, true); window.addEventListener("resize", rePlace);
-		return () => { cancelAnimationFrame(raf); observer.disconnect(); chromeObserver.disconnect(); window.removeEventListener("scroll", rePlace, true); window.removeEventListener("resize", rePlace); };
+		return () => { cancelAnimationFrame(raf); observer.disconnect(); window.removeEventListener("scroll", rePlace, true); window.removeEventListener("resize", rePlace); };
 	}, [composer]);
 	const placed = placement !== null;
 	useEffect(() => {
@@ -273,10 +284,18 @@ export function SideThreadPopover({ state, chatId, composer, ...handlers }: { st
 		event.preventDefault(); const start = currentFrame(); const origin = { x: event.clientX, y: event.clientY }; setFrame(start);
 		track(event, (move) => setFrame(resizeSideThread(start, edge, { x: move.clientX - origin.x, y: move.clientY - origin.y }, sideThreadViewport())));
 	};
+	if (!wide) {
+		return <div ref={boxRef} role="dialog" aria-label="Side question" data-testid="side-thread-popover" data-side-sheet=""
+			style={{ position: "fixed", zIndex: 60, left: 0, right: 0, bottom: 0, maxHeight: "70dvh",
+				paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))", paddingLeft: "max(0.75rem, env(safe-area-inset-left))", paddingRight: "max(0.75rem, env(safe-area-inset-right))" }}
+			className="flex flex-col overflow-hidden rounded-t-xl border-t bg-background pt-3 text-sm shadow-xl">
+			<SideThreadBody key={state.threadId} state={state} chatId={chatId} {...handlers} canDock={false} />
+		</div>;
+	}
 	const style: React.CSSProperties = frame ? { left: frame.x, top: frame.y, width: frame.width, height: frame.height }
 		: placement ? { ...placement.style, maxHeight: placement.maxHeight } : { left: 0, top: 0, visibility: "hidden" };
 	return <div ref={boxRef} role="dialog" aria-label="Side question" data-testid="side-thread-popover"
-		style={{ position: "fixed", zIndex: 60, ...style }} className="lh-no-drag flex flex-col overflow-hidden rounded-xl border bg-background/50 p-3 text-sm shadow-xl backdrop-blur-[18px]">
+		style={{ position: "fixed", zIndex: 60, ...style }} className="flex flex-col overflow-hidden rounded-xl border bg-background/50 p-3 text-sm shadow-xl backdrop-blur-[18px]">
 		<SideThreadBody key={state.threadId} state={state} chatId={chatId} {...handlers} onDragStart={startDrag} />
 		{RESIZE_HANDLES.map(({ edge, className }) => <div key={edge} aria-hidden="true" data-side-resize={edge}
 			data-testid={edge === "s" ? "side-thread-resize" : `side-thread-resize-${edge}`} className={`absolute touch-none ${className}`}

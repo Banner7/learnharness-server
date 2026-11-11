@@ -40,7 +40,11 @@ import {
 	type RenderedMode,
 	type Theme,
 	type ThemeColors,
+	type ThemeMode,
 } from "@/src/core";
+
+/** The system dark preference Automatic follows. */
+const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 /** The resolved, fully-concrete appearance view (delta + factory merged). */
 export function resolveAppearance(delta: AppearanceSettings | undefined) {
@@ -66,6 +70,9 @@ export function resolveAppearance(delta: AppearanceSettings | undefined) {
  *  without being installed: an installed copy wins by name, the bundled
  *  one fills in otherwise. Exported for the font menu and tests. */
 export const BUNDLED_READING_FONTS: Readonly<Record<string, string>> = {
+	"Computer Modern Serif": '"lh-cmu"',
+	"Source Sans 3": "var(--font-sans3)",
+	"Atkinson Hyperlegible Next": "var(--font-atkinson)",
 	"JetBrains Mono": "var(--font-jetbrains)",
 };
 
@@ -77,10 +84,10 @@ export function appearanceVars(
 	a: ReturnType<typeof resolveAppearance>,
 	theme: Theme,
 ): Record<string, string> {
-	const vars: Record<string, string> = themeVars(effectiveColors(theme, a), theme.mode);
+	const vars: Record<string, string> = themeVars(effectiveColors(theme, a), theme.mode, theme.extras);
 	if (a.fontFamily !== null) {
 		const bundled = BUNDLED_READING_FONTS[a.fontFamily];
-		vars["--font-prose"] = `"${a.fontFamily}", ${bundled ? `${bundled}, ` : ""}var(--font-sans3), ui-sans-serif, system-ui, sans-serif`;
+		vars["--font-prose"] = `"${a.fontFamily}", ${bundled ? `${bundled}, ` : ""}"lh-cmu", serif`;
 	}
 	// The ONE documented reading-size variable (typography round 4): prose,
 	// inputs, and session titles all read it, so one setProperty moves them.
@@ -162,12 +169,44 @@ export function AppearanceProvider({
 	);
 	const appliedRef = useRef<string>("");
 	const appearance = useMemo(() => resolveAppearance(delta), [delta]);
+	// Automatic follows the system. Read at hydration (the pre-paint script
+	// in app/layout.tsx already flipped the class), so the first client
+	// render agrees with what is on screen; then follow live changes.
+	const [system, setSystem] = useState<ThemeMode>(() =>
+		typeof window !== "undefined" && window.matchMedia?.(DARK_QUERY).matches ? "dark" : "light",
+	);
+	useEffect(() => {
+		const query = window.matchMedia?.(DARK_QUERY);
+		if (!query) return;
+		const sync = () => setSystem(query.matches ? "dark" : "light");
+		sync();
+		query.addEventListener("change", sync);
+		return () => query.removeEventListener("change", sync);
+	}, []);
+	const customs = useMemo(() => themes.filter((t) => !t.builtin), [themes]);
 	const activeTheme = useMemo(
-		() => resolveTheme(appearance.theme, themes.filter((t) => !t.builtin)),
-		[appearance.theme, themes],
+		() => resolveTheme(appearance.theme, customs, system),
+		[appearance.theme, customs, system],
 	);
 	const mode = activeTheme.mode;
 	const colors = useMemo(() => effectiveColors(activeTheme, appearance), [activeTheme, appearance]);
+
+	// The browser bar (theme-color metas from app/layout.tsx): Automatic
+	// keeps one color per system mode, any other theme its background.
+	useEffect(() => {
+		const light = activeTheme.follows ? effectiveColors(resolveTheme(appearance.theme, customs, "light"), appearance).background : colors.background;
+		const dark = activeTheme.follows ? effectiveColors(resolveTheme(appearance.theme, customs, "dark"), appearance).background : colors.background;
+		for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+			meta.content = meta.media.includes("dark") ? dark : light;
+		}
+	}, [activeTheme.follows, appearance, customs, colors.background]);
+
+	// The vars apply on every change — stringified as the change signal.
+	const vars = useMemo(() => appearanceVars(appearance, activeTheme), [appearance, activeTheme]);
+	// A refreshed server layout can rewrite <html>'s class/style while the
+	// mounted provider retains a newer local save. Reapply that live state
+	// when the server-rendered palette changes, even within the same mode.
+	const serverKey = JSON.stringify(themeVars(effectiveColors(initialTheme, initialAppearance), initialTheme.mode, initialTheme.extras));
 
 	// The mode lives on <html> as a class, for every `.dark`/`.light` rule
 	// and variant. A LAYOUT effect (like the vars below): descendants'
@@ -177,14 +216,8 @@ export function AppearanceProvider({
 		const root = document.documentElement;
 		root.classList.toggle("dark", mode === "dark");
 		root.classList.toggle("light", mode === "light");
-	}, [mode, initialTheme.mode]);
+	}, [mode, serverKey]);
 
-	// The vars apply on every change — stringified as the change signal.
-	const vars = useMemo(() => appearanceVars(appearance, activeTheme), [appearance, activeTheme]);
-	// A refreshed server layout can rewrite <html>'s class/style while the
-	// mounted provider retains a newer local save. Reapply that live state
-	// when the server-rendered palette changes, even within the same mode.
-	const serverKey = JSON.stringify(themeVars(effectiveColors(initialTheme, initialAppearance), initialTheme.mode));
 	const key = useMemo(() => JSON.stringify([vars, serverKey]), [vars, serverKey]);
 	// REMOVAL is half the job (owner repro, fix wave): a later write that
 	// OMITS a var (empty font = factory, serif toggle back on) must clear
@@ -205,13 +238,6 @@ export function AppearanceProvider({
 			appliedNamesRef.current.add(name);
 		}
 	}, [key, vars]);
-
-	// The desktop shell's native chrome (window background, Windows/Linux
-	// control overlay) follows the theme — absent in a browser.
-	const background = colors.background;
-	useEffect(() => {
-		window.lh?.setAppearance?.({ mode, background });
-	}, [mode, background]);
 
 	const refreshThemes = useCallback(async () => {
 		try {

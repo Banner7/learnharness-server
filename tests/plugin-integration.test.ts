@@ -113,7 +113,7 @@ test("external native backend composes host, inference, persistent managed input
 	const observers = new Set<(notification: PluginNotification) => void>();
 	const events = new Set<(event: ServerEvent) => void>();
 	const activationSignals: AbortSignal[] = [];
-	const calls: { background: boolean; context: TranscriptContext }[] = [];
+	const calls: { context: TranscriptContext }[] = [];
 	let hostChanges = 0, agentChanges = 0;
 	let releaseQuestion!: () => void;
 	const questionGate = new Promise<void>(resolve => { releaseQuestion = resolve; });
@@ -123,9 +123,9 @@ test("external native backend composes host, inference, persistent managed input
 	]);
 	const deps: PluginInferenceDeps = {
 		catalog: () => structuredClone(catalog), providerKeyPresent: () => true,
-		engineForSpec: (model, background) => ({ model: { api: "fixture", provider: model.provider, id: model.id } as never, level: "off", streamFn: (_model, context, options) => {
+		engineForSpec: (model) => ({ model: { api: "fixture", provider: model.provider, id: model.id } as never, level: "off", streamFn: (_model, context, options) => {
 			const index = calls.length;
-			calls.push({ background, context: structuredClone(context) });
+			calls.push({ context: structuredClone(context) });
 			const stream = new AssistantMessageEventStream();
 			if (index === 0) {
 				void questionGate.then(() => {
@@ -243,7 +243,6 @@ test("external native backend composes host, inference, persistent managed input
 	const rows = fs.readFileSync(usageFile, "utf8").trim().split("\n").map(line => JSON.parse(line) as { model: unknown; usage: unknown });
 	assert.deepEqual(rows.map(row => row.model), [pin, pin]);
 	assert.deepEqual(rows.map(row => row.usage), [usage, usage]);
-	assert.deepEqual(calls.map(entry => entry.background), [true, false]);
 	assert.equal(calls.length, 2, "publish endRun prevents an automatic third model call");
 	const checkpointed = JSON.parse(fs.readFileSync(recordFile, "utf8")) as PluginAgentRecord;
 	assert.equal(checkpointed.status, "idle");

@@ -5,9 +5,11 @@ import { proxy } from "../proxy.ts";
 import { createPluginDocumentRoute } from "../src/server/plugin-transport.ts";
 
 it("streamed document route shares browser policy before params, plugin work or multipart body access", async t => {
-	const keys = ["LH_DESKTOP_SERVER", "LH_DESKTOP_API_SECRET", "LH_ALLOWED_HOSTS"] as const;
+	const keys = ["LH_WEB_ORIGIN", "LH_WEB_ACCESS_TOKEN", "LH_TAILSCALE_USERS"] as const;
 	const saved = keys.map(key => process.env[key]);
 	for (const key of keys) delete process.env[key];
+	const token = "a".repeat(64);
+	process.env.LH_WEB_ORIGIN = "http://localhost"; process.env.LH_WEB_ACCESS_TOKEN = token;
 	try {
 		const convert = t.mock.fn(async () => Response.json({ markdown: "owned fixture" }));
 		const route = createPluginDocumentRoute({ convertDocument: convert });
@@ -30,7 +32,7 @@ it("streamed document route shares browser policy before params, plugin work or 
 				const response = method === "POST" ? await route.POST(request, context) : await route[method](request);
 				const control = proxy(new NextRequest(url, { method, headers }));
 				assert.equal(response.status, 403, `${method}: ${host} ${origin}`);
-				assert.equal(response.headers.get("cache-control"), "no-store");
+				assert.equal(response.headers.get("cache-control"), control.headers.get("cache-control"));
 				assert.deepEqual(await response.json(), await control.json());
 				assert.equal(bodyAccesses, 0);
 				assert.equal(paramsAccesses, 0);
@@ -40,7 +42,7 @@ it("streamed document route shares browser policy before params, plugin work or 
 		assert.equal(convert.mock.callCount(), 0);
 		const form = new FormData(); form.append("file", new File(["owned fixture"], "small.txt"));
 		const post = new Request("http://localhost/api/plugins/document-one/documents/markdown", {
-			method: "POST", headers: { origin: "http://localhost", "sec-fetch-site": "same-origin" }, body: form,
+			method: "POST", headers: { host: "localhost", origin: "http://localhost", "sec-fetch-site": "same-origin", authorization: `Basic ${Buffer.from(`learnharness:${token}`).toString("base64")}` }, body: form,
 		});
 		assert.equal((await route.POST(post, { params: Promise.resolve({ id: "document-one" }) })).status, 200);
 		assert.equal(convert.mock.callCount(), 1);

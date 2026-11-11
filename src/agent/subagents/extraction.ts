@@ -775,6 +775,13 @@ export interface ExtractionPipeline {
 	 *  path, so re-importing the same file re-runs extraction against the
 	 *  same source identity (mappings dedupe by it). */
 	importNotes(input: NotesImportInput): Promise<EmissionStats>;
+	/** Vault library: the same run for a followed vault note under its
+	 *  stored, rename-stable source id (never a path hash). */
+	extractVaultNote(input: NotesImportInput & { id: string }): Promise<EmissionStats>;
+	/** Throws ModelsNotConfiguredError / ProviderKeyMissingError when a run
+	 *  would be refused: the vault library checks before it detaches a
+	 *  note's traces, never after. */
+	assertReady(): void;
 }
 
 /** pi's per-step usage, flattened to the persisted CallUsage fields
@@ -1410,6 +1417,15 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 	 * auditor and usage history remain source-scoped; this is not exactly-once. */
 	async function importNotes(input: NotesImportInput): Promise<EmissionStats> {
 		const id = `src_${crypto.createHash("sha256").update(input.filePath).digest("hex").slice(0, 12)}`;
+		return extractSource(id, input);
+	}
+
+	/** Vault library: the same run under the vault source's minted id. */
+	function extractVaultNote(input: NotesImportInput & { id: string }): Promise<EmissionStats> {
+		return extractSource(input.id, { filePath: input.filePath, text: input.text });
+	}
+
+	async function extractSource(id: string, input: NotesImportInput): Promise<EmissionStats> {
 		// Acquire BEFORE source upsert: overlapping contents must not alter metadata.
 		if (inFlight.has(id)) throw new NotesImportError("busy", { nodes: 0, chains: 0 }, "This file is already being imported. Try again when it finishes.");
 		inFlight.add(id);
@@ -1425,6 +1441,6 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 		}
 	}
 
-	return { runExtraction, importNotes };
+	return { runExtraction, importNotes, extractVaultNote, assertReady: refuseIfStagesUnready };
 }
 

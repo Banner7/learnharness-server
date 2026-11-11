@@ -9,15 +9,12 @@ import { mountPluginChrome } from "./helpers/plugin-chrome.tsx";
 import { parseHTML } from "linkedom";
 
 describe("plugin view host shell", () => {
-	it("uses the shared session-sized title, drag/WCO header and sidebar reopen even while loading", () => {
+	it("uses the shared session-sized title, header and sidebar reopen even while loading", () => {
 		const html = renderToStaticMarkup(<PluginViewScreen pluginId="fixture" viewId="overview" />);
-		assert.ok(html.includes("lh-wco-gutter"));
-		assert.ok(html.includes("lh-drag"));
 		assert.ok(html.includes('aria-label="Open sidebar"'));
-		assert.ok(html.includes("font-title text-3xl tracking-tight"));
+		assert.ok(html.includes("font-title text-2xl tracking-tight sm:text-3xl"));
 		assert.ok(html.includes('aria-label="Plugin settings"'));
 		assert.ok(html.includes("Loading plugin…"));
-		assert.ok(!html.includes("text-2xl"));
 	});
 
 	it("bounds scrolling below the top bar and keeps surface overlays outside that viewport", () => {
@@ -62,7 +59,7 @@ describe("plugin view host shell", () => {
 		try {
 			assert.ok(f.document.body.textContent?.includes("This plugin view is not available."));
 			assert.equal(f.document.querySelector('a[href="/"]')?.textContent, "Back to home");
-			assert.ok(f.document.querySelector('header.lh-wco-gutter [aria-label="Plugin settings"]'));
+			assert.ok(f.document.querySelector('header [aria-label="Plugin settings"]'));
 		} finally { await f.close(); }
 	});
 });

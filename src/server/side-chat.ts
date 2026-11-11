@@ -15,12 +15,10 @@ import { COMPACTION_RESERVE_TOKENS } from "../core/compaction.ts";
 import { resolveSideQuestionSpec } from "../core/settings-resolution.ts";
 import { modelsNotConfigured, providerKeyMissing as providerKeyMissingEnvelope } from "../core/settings.ts";
 import { piEngineForSpec, type PiEngine } from "../agent/models.ts";
-import { isSubscriptionProvider } from "../agent/subscription-connections.ts";
-import { usageWasAdmitted } from "../agent/subscription-request-cycle.ts";
+import { usageWasAdmitted } from "../agent/usage-admission.ts";
 import { composeSideChatInstructions, streamSideAnswer } from "../agent/side-chat.ts";
 import { effectiveSettings, stores } from "./stores.ts";
 import { providerKeyPresent } from "./keys.ts";
-import { refreshConnectionCatalog } from "./model-catalog.ts";
 import { awaitCompaction } from "./compaction.ts";
 
 export type SideStreamEvent =
@@ -28,10 +26,9 @@ export type SideStreamEvent =
 	| { type: "text"; text: string }
 	| { type: "done"; thread: SideChatThread }
 	| { type: "error"; error: string };
-type SideEngine = PiEngine & { sideUsageAdmitted?: () => boolean };
 export interface SideChatDeps {
 	chatStore: ChatStore;
-	engineFor: (record: ChatRecord) => Promise<SideEngine | Response>;
+	engineFor: (record: ChatRecord) => Promise<PiEngine | Response>;
 	instructions: () => string;
 	beforeAsk?: (chatId: string) => Promise<void>;
 }
@@ -210,7 +207,7 @@ export function createSideChatService(deps: SideChatDeps): SideChatService {
 					settledThread = { ...entry, messages: [...entry.messages, answer] };
 					return settledThread;
 				}));
-				if (result.usage && usageWasAdmitted(result.usage) && engine.sideUsageAdmitted?.() !== false) {
+				if (result.usage && usageWasAdmitted(result.usage)) {
 					try {
 						deps.chatStore.appendTurnUsage(chatId, { id: run.answerId, messageId: answer.id, at, model: run.model, steps: [{
 							inputTokens: result.usage.input, outputTokens: result.usage.output, cacheReadTokens: result.usage.cacheRead,
@@ -264,16 +261,12 @@ export function createSideChatService(deps: SideChatDeps): SideChatService {
 		settled: (chatId, threadId) => runs.get(runKey(chatId, threadId))?.settled ?? Promise.resolve() };
 }
 
-async function productionEngineFor(record: ChatRecord): Promise<SideEngine | Response> {
+async function productionEngineFor(record: ChatRecord): Promise<PiEngine | Response> {
 	const spec = resolveSideQuestionSpec(record.settings, stores.settingsStore.readSettings());
 	if (!spec) return Response.json(modelsNotConfigured(["strong"]), { status: 503 });
-	if (isSubscriptionProvider(spec.provider)) await refreshConnectionCatalog(spec.provider);
 	if (!providerKeyPresent(spec.provider)) return Response.json(providerKeyMissingEnvelope(spec.provider, ["strong"]), { status: 503 });
 	try {
-		let denied = false;
-		const engine = piEngineForSpec(spec, false, { captured() {}, beforeDispatch() {}, noDispatch() { denied = true; } },
-			() => stores.settingsStore.readSettings()?.models?.strong?.cacheRetention);
-		return { ...engine, sideUsageAdmitted: () => !denied };
+		return piEngineForSpec(spec, () => stores.settingsStore.readSettings()?.models?.strong?.cacheRetention);
 	} catch { return Response.json({ error: "The selected model is unavailable." }, { status: 503 }); }
 }
 interface SideChatGlobal { __lhSideChatService?: SideChatService }

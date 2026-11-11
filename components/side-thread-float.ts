@@ -1,14 +1,8 @@
-/** Anchored, dragged, and resized floating companion geometry. Only the
- * macOS native-controls corner is excluded; ordinary browser placement
- * and the rest of the desktop's top edge remain available. */
+/** Anchored, dragged, and resized floating companion geometry. */
 import { computeMenuPlacement } from "./menu-shell";
 
 type Rect = { left: number; right: number; top: number; bottom: number };
-export type SideThreadViewport = {
-	width: number; height: number;
-	/** CSS-coordinate dimensions, already divided by Electron's zoom. */
-	trafficLights?: { width: number; height: number };
-};
+export type SideThreadViewport = { width: number; height: number };
 
 /** 26rem, the popover's width beside a passage. */
 export const SIDE_THREAD_WIDTH = 416;
@@ -21,44 +15,19 @@ export interface SideThreadPlacement {
 	maxHeight: number;
 }
 
-/** A full-width panel cannot sit beside the native controls, so leave
- * enough vertical room to fit below them, even after a window shrink. */
-function fitHeight(height: number, width: number, viewport: SideThreadViewport): number {
-	const corner = viewport.trafficLights;
-	const top = corner && width > viewport.width - corner.width - EDGE ? Math.max(EDGE, corner.height) : EDGE;
-	return Math.max(0, Math.min(height, viewport.height - top - EDGE));
+function fitHeight(height: number, viewport: SideThreadViewport): number {
+	return Math.max(0, Math.min(height, viewport.height - 2 * EDGE));
 }
 
 export function clampDragged(at: { x: number; y: number }, size: { width: number; height: number }, viewport: SideThreadViewport): { x: number; y: number } {
 	const maxX = Math.max(EDGE, viewport.width - size.width - EDGE);
 	const maxY = Math.max(EDGE, viewport.height - size.height - EDGE);
-	let x = Math.max(EDGE, Math.min(at.x, maxX));
-	let y = Math.max(EDGE, Math.min(at.y, maxY));
-	const corner = viewport.trafficLights;
-	if (corner && x < corner.width && y < corner.height) {
-		// The closest valid edge wins; never reserve an entire top strip.
-		const canRight = corner.width <= maxX;
-		const canBelow = corner.height <= maxY;
-		if (canRight && (!canBelow || corner.width - x < corner.height - y)) x = corner.width;
-		else if (canBelow) y = corner.height;
-	}
-	return { x, y };
+	return { x: Math.max(EDGE, Math.min(at.x, maxX)), y: Math.max(EDGE, Math.min(at.y, maxY)) };
 }
 
 export function fitSideThreadFrame(frame: { x: number; y: number; height: number }, width: number, viewport: SideThreadViewport): { x: number; y: number; height: number } {
-	const height = fitHeight(frame.height, width, viewport);
+	const height = fitHeight(frame.height, viewport);
 	return { ...clampDragged(frame, { width, height }, viewport), height };
-}
-
-function clearTrafficLights(placement: SideThreadPlacement, contentHeight: number, viewport: SideThreadViewport): SideThreadPlacement {
-	if (!viewport.trafficLights) return placement;
-	const { style } = placement;
-	const maxHeight = fitHeight(placement.maxHeight, style.width, viewport);
-	const height = Math.min(Math.max(0, contentHeight), maxHeight);
-	const top = style.top ?? viewport.height - (style.bottom ?? 0) - height;
-	const at = clampDragged({ x: style.left, y: top }, { width: style.width, height }, viewport);
-	if (at.x === style.left && at.y === top) return { style, maxHeight };
-	return { style: { left: at.x, top: at.y, width: style.width }, maxHeight: Math.min(maxHeight, viewport.height - at.y - EDGE) };
 }
 
 export function placeSideThread({ kind, rect, viewport, contentHeight }: {
@@ -68,23 +37,23 @@ export function placeSideThread({ kind, rect, viewport, contentHeight }: {
 	contentHeight: number;
 }): SideThreadPlacement {
 	if (kind === "composer") {
-		return clearTrafficLights({
+		return {
 			style: { left: rect.left, width: rect.right - rect.left, bottom: viewport.height - rect.top + GAP },
 			maxHeight: Math.min(CAP_VH * viewport.height, rect.top - GAP - EDGE),
-		}, contentHeight, viewport);
+		};
 	}
 	const width = Math.min(SIDE_THREAD_WIDTH, viewport.width - 2 * EDGE);
 	const placed = computeMenuPlacement(rect, viewport, contentHeight, "down", "right");
 	const right = (placed.style.right as number | undefined) ?? 0;
 	const left = Math.max(EDGE, Math.min(viewport.width - right - width, viewport.width - width - EDGE));
-	return clearTrafficLights({
+	return {
 		style: {
 			left,
 			width,
 			...(placed.side === "down" ? { top: placed.style.top as number } : { bottom: placed.style.bottom as number }),
 		},
 		maxHeight: placed.maxHeight,
-	}, contentHeight, viewport);
+	};
 }
 
 /** The smallest height vertical resizing allows when it fits. */
@@ -99,8 +68,8 @@ export function fitResizableSideThreadFrame(frame: SideThreadFrame, viewport: Si
 	return { ...fitSideThreadFrame(frame, width, viewport), width };
 }
 
-/** Each handle keeps its opposite edge fixed, except when window/native
- * control clearance makes that impossible. Pure horizontal resizing leaves
+/** Each handle keeps its opposite edge fixed, except when the window
+ * makes that impossible. Pure horizontal resizing leaves
  * the current height alone; vertical resizing retains the 160px minimum. */
 export function resizeSideThread(frame: SideThreadFrame, edge: SideThreadResizeEdge, travel: { x: number; y: number }, viewport: SideThreadViewport): SideThreadFrame {
 	const start = fitResizableSideThreadFrame(frame, viewport);

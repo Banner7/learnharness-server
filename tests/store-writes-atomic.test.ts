@@ -104,10 +104,6 @@ describe("failed saves leave the old file whole", () => {
 			() => promptOverrides.writeOverride("system-prompt.md", "old prompt"),
 			() => promptOverrides.writeOverride("system-prompt.md", "new prompt"));
 	});
-
-	it("auth keys", (t) => {
-		assertAllOrNothing(t, config.AUTH_FILE, () => authStore.setAuthVar("KEEP", "old"), () => authStore.setAuthVar("KEEP", "new"));
-	});
 });
 
 describe("Windows sharing violations: per-writer compatibility policy (modeled)", () => {
@@ -133,7 +129,6 @@ describe("Windows sharing violations: per-writer compatibility policy (modeled)"
 			return { file: config.GRAPH_FORMAT_FILE, save: ensureGraphFormat };
 		} },
 		{ name: "prompt override", fallback: true, prepare: () => ({ file: path.join(config.PROMPTS_OVERRIDE_DIR, "system-prompt.md"), save: () => promptOverrides.writeOverride("system-prompt.md", "compatible prompt") }) },
-		{ name: "auth", fallback: false, prepare: () => ({ file: config.AUTH_FILE, save: () => authStore.setAuthVar("KEEP", "must not land") }) },
 		{ name: "source deletion", fallback: false, prepare: () => ({ file: config.SOURCES_FILE, save: () => graphStore.deleteSources(new Set(["src_policy"])) }) },
 		{ name: "ledger rewrite", fallback: false, prepare: () => ({ file: config.LEDGER_FILES.chains, save: () => graphStore.rewriteLedgers({ chains: [] }) }) },
 		{ name: "positions", fallback: false, prepare: () => ({ file: config.POSITIONS_FILE, save: () => graphStore.writePositions({ policy: { x: 3, y: 4 } }) }) },

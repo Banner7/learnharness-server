@@ -1,6 +1,5 @@
 import { inspectClaudeInstallation } from "../agent/claude-code/installation.ts";
 import { initAuthEnv } from "./keys.ts";
-import { subscriptionRequestOrigin } from "./web-subscription-http.ts";
 import { claudeCodeEnabled } from "./claude-code-config.ts";
 
 /** The Settings status seam: initialize provenance before any child env is copied. */
@@ -9,20 +8,17 @@ export async function claudeCodeInstallationStatus() {
 	return inspectClaudeInstallation();
 }
 
-/** Same-origin browser intent, not user authentication. No CORS grants.
- * A public/shared server still requires its own access-control boundary. */
+/** Explicit same-origin browser intent on top of the access gate (which
+ * already pins Host and Origin). No CORS grants. */
 export async function claudeCodeInstallationResponse(
 	request: Request,
 	inspect = claudeCodeInstallationStatus,
 	enabled = claudeCodeEnabled,
 ): Promise<Response> {
-	const origin = subscriptionRequestOrigin(request);
-	const supplied = request.headers.get("origin");
 	const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
-	if (request.method !== "GET" || !origin
+	if (request.method !== "GET"
 		|| request.headers.get("x-learnharness-claude-code") !== "1"
-		|| request.headers.get("sec-fetch-site") === "cross-site"
-		|| (supplied !== null && supplied !== origin)) {
+		|| request.headers.get("sec-fetch-site") === "cross-site") {
 		return Response.json({ error: "Claude Code checks require a same-origin LearnHarness request." }, { status: 403, headers });
 	}
 	if (!enabled()) return Response.json({ error: "Claude Code is disabled." }, { status: 403, headers });

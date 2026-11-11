@@ -8,9 +8,9 @@ export function formatUsd(c: number): string {
 	return c >= 1 ? `$${c.toFixed(2)}` : `$${c.toFixed(4)}`;
 }
 
-export function planCostLabel(dollars: number | null, subscription: boolean | string | readonly string[] | undefined, format = formatUsd): string {
-	const labels = subscription === true ? ["ChatGPT"] : typeof subscription === "string" ? [subscription] : Array.isArray(subscription) ? [...new Set(subscription)] : [];
-	return [...(dollars === null ? [] : [format(dollars)]), ...labels].join(" + ") || "—";
+/** Dollars plus billing labels that carry no estimate (e.g. "CLI"). */
+export function planCostLabel(dollars: number | null, labels: readonly string[] = [], format = formatUsd): string {
+	return [...(dollars === null ? [] : [format(dollars)]), ...new Set(labels)].join(" + ") || "—";
 }
 
 /** 38000 → "38k", 1234567 → "1.2M" — trimmed, never "38.0k". */

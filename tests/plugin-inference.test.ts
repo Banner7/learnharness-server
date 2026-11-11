@@ -14,7 +14,7 @@ import { runSubagent } from "../src/agent/subagents/pi-run.ts";
 import type { ModelCatalogResponse } from "../src/core/contracts/models.ts";
 import type { PluginModelSpec } from "../src/core/plugin-agents.ts";
 import type { PluginInferenceOptions, PluginInferenceRequest } from "../src/core/plugins.ts";
-import { usageWasAdmitted, type SubscriptionDispatchLifecycle } from "../src/agent/subscription-request-cycle.ts";
+import { usageWasAdmitted } from "../src/agent/usage-admission.ts";
 
 const spec = { provider: "fixture", id: "explicit-model", thinkingLevel: "medium" } as const;
 const usage = () => ({ input: 3, output: 4, cacheRead: 1, cacheWrite: 0, totalTokens: 8, cost: { input: 0.1, output: 0.2, cacheRead: 0.01, cacheWrite: 0, total: 0.31 } });
@@ -34,8 +34,8 @@ function deferred<T = void>() {
 	const promise = new Promise<T>((r) => { resolve = r; });
 	return { promise, resolve };
 }
-type Dispatch = { model: PluginModelSpec; background: boolean; context: TranscriptContext; options: SimpleStreamOptions; lifecycle?: SubscriptionDispatchLifecycle };
-function fixture(t: TestContext, customize?: { model?: PluginModelSpec; admitted?: boolean; produce?: (stream: AssistantMessageEventStream, call: Dispatch) => void }) {
+type Dispatch = { model: PluginModelSpec; context: TranscriptContext; options: SimpleStreamOptions };
+function fixture(t: TestContext, customize?: { model?: PluginModelSpec; produce?: (stream: AssistantMessageEventStream, call: Dispatch) => void }) {
 	const directory = mkdtempSync(join(tmpdir(), "lh-plugin-inference-test-"));
 	t.after(() => rmSync(directory, { recursive: true, force: true }));
 	const signal = new AbortController();
@@ -46,19 +46,13 @@ function fixture(t: TestContext, customize?: { model?: PluginModelSpec; admitted
 	const deps: PluginInferenceDeps = {
 		catalog: () => catalog,
 		providerKeyPresent: () => keyPresent,
-		engineForSpec: (pin, background, lifecycle) => ({
+		engineForSpec: (pin) => ({
 			model: { api: "fixture", provider: pin.provider, id: pin.id } as never,
 			level: pin.thinkingLevel ?? "medium",
 			streamFn: (_model, context, options) => {
 				const stream = new AssistantMessageEventStream();
-				const call: Dispatch = { model: pin, background, context, options: options ?? {}, lifecycle };
+				const call: Dispatch = { model: pin, context, options: options ?? {} };
 				calls.push(call);
-				if (lifecycle) {
-					const scope = { accountId: "fixture-account", epoch: 1, authorityRevision: 1, selectedModelId: pin.id };
-					lifecycle.captured(scope);
-					if (customize?.admitted === false) lifecycle.noDispatch("background");
-					else lifecycle.beforeDispatch(scope);
-				}
 				if (customize?.produce) customize.produce(stream, call);
 				else {
 					const m = output(pin);
@@ -93,7 +87,6 @@ test("complete preserves native tool calls/signatures and appends per-model plug
 	const final = await f.adapter.inference.complete(request());
 	assert.deepEqual(final, output());
 	assert.equal(f.calls.length, 1);
-	assert.equal(f.calls[0]?.background, true);
 	assert.equal(f.calls[0]?.options.reasoning, "medium");
 	assert(f.calls[0]?.context.messages.some((m) => m.role === "system" && m.content === "Plugin task instructions"));
 	assert.deepEqual(readdirSync(f.directory), ["usage.jsonl"]);
@@ -104,7 +97,6 @@ test("complete preserves native tool calls/signatures and appends per-model plug
 	assert(!readFileSync(join(f.directory, "usage.jsonl"), "utf8").includes("Explicit task"));
 	assert(!readFileSync(join(f.directory, "usage.jsonl"), "utf8").includes("native-signature"));
 	await f.adapter.inference.complete({ ...request(), purpose: "user" });
-	assert.equal(f.calls[1]?.background, false);
 	assert.equal(ledger(f.directory).length, 2);
 });
 
@@ -158,45 +150,6 @@ test("allowed generation settings are forwarded without host sampling defaults; 
 	await f.adapter.inference.complete(request());
 	assert.equal(f.calls[1]?.options.temperature, undefined);
 	assert.equal(f.calls[1]?.options.maxTokens, undefined);
-});
-
-test("ChatGPT/native subscription admission gates denied usage and preserves background policy with no fallback", async (t) => {
-	for (const provider of ["chatgpt", "xai-subscription"]) {
-		const pin = { ...spec, provider };
-		const f = fixture(t, { model: pin, admitted: false, produce(stream) {
-			const failure = { ...output(pin), stopReason: "error" as const, errorMessage: "Background consent disabled. No API-key fallback was used." };
-			stream.push({ type: "error", reason: "error", error: failure }); stream.end();
-		} });
-		const final = await f.adapter.inference.complete(request(pin));
-		assert.equal(final.stopReason, "error");
-		assert.match(final.errorMessage!, /Background consent disabled/);
-		assert.equal(f.calls.length, 1);
-		assert.equal(f.calls[0]?.background, true);
-		assert.equal(f.calls[0]?.model.provider, provider);
-		assert.deepEqual(ledger(f.directory), []);
-	}
-});
-
-test("managed-agent usage checks original admission identity before cloning (including ChatGPT lifecycle denial)", async (t) => {
-	for (const admitted of [false, true]) {
-		const pin = { ...spec, provider: "chatgpt" };
-		const f = fixture(t, { model: pin, admitted, produce(stream) {
-			const failure = { ...output(pin), stopReason: "error" as const, errorMessage: admitted ? "Admitted provider error" : "Denied before dispatch" };
-			stream.push({ type: "error", reason: "error", error: failure }); stream.end();
-		} });
-		const service = createPluginAgentService({ store: createPluginAgentRecordStore(join(f.directory, "agents")), engineFor: f.adapter.engineFor, onUsage: f.adapter.onUsage, signal: f.signal.signal });
-		t.after(() => service.dispose());
-		service.register({ id: "helper", instructions: "Test", model: pin });
-		const { id } = service.create("helper");
-		await service.send(id, "Explicit plugin task", { requestId: "one", purpose: "background" });
-		await new Promise<void>((resolve, reject) => {
-			let unsubscribe: (() => void) | undefined;
-			const timeout = setTimeout(() => { unsubscribe?.(); reject(new Error("managed call did not settle")); }, 3000);
-			unsubscribe = service.subscribe(id, (s) => { if (s.status !== "running") { clearTimeout(timeout); queueMicrotask(() => { unsubscribe?.(); resolve(); }); } });
-		});
-		assert.equal(service.get(id).status, "error");
-		assert.equal(ledger(f.directory).length, admitted ? 1 : 0);
-	}
 });
 
 test("activation and caller abort cancel in-flight waits and disable future work without usage writes", async (t) => {
@@ -274,11 +227,13 @@ test("dispatch-time host refusals retain safe Error.message while cancellation r
 	const refused = await collect(engine.streamFn(engine.model, normalizeContext({ messages: [] }), {}));
 	assert.match((refused.at(-1) as { error: AssistantMessage }).error.errorMessage!, /key is set.*Settings/);
 	for (const thrown of [new Error("Selected connection disconnected mid-run; reconnect explicitly"), "opaque non-Error refusal"]) {
+		let dispatches = 0;
 		const adapter = createPluginInference({ signal: f.signal.signal, dataDirectory: f.directory }, {
 			...f.deps, providerKeyPresent: () => true,
-			engineForSpec(model, background, lifecycle) {
-				if (lifecycle) throw thrown;
-				return f.deps.engineForSpec(model, background);
+			engineForSpec(model) {
+				// The first resolution holds the engine; the dispatch-time revalidation refuses.
+				if (dispatches++ > 0) throw thrown;
+				return f.deps.engineForSpec(model);
 			},
 		});
 		const held = await adapter.engineFor(spec, "user");
@@ -327,35 +282,6 @@ test("native SDK Agent executes a tool batch then continues through PluginStream
 	assert.deepEqual(assistants[0]?.content, output().content, "native tool call and signatures survive SDK round trip");
 	assert.equal(assistants.at(-1)?.stopReason, "stop");
 	assert.equal(ledger(f.directory).length, 2);
-});
-
-test("SDK subscription tool continuation preserves original admitted and denied usage identities independently", { timeout: 3000 }, async (t) => {
-	const pin = { ...spec, provider: "chatgpt" };
-	const nativeUsage: AssistantMessage["usage"][] = [];
-	const f = fixture(t, { model: pin, admitted: false, produce(stream, call) {
-		const continuation = call.context.messages.some((message) => message.role === "toolResult");
-		if (!continuation) call.lifecycle!.beforeDispatch({ accountId: "fixture-account", epoch: 1, authorityRevision: 1, selectedModelId: pin.id });
-		const m = continuation ? { ...output(pin), stopReason: "error" as const, errorMessage: "Background consent revoked before continuation" } : output(pin);
-		nativeUsage.push(m.usage);
-		if (continuation) stream.push({ type: "error", reason: "error", error: m });
-		else { stream.push({ type: "start", partial: m }); stream.push({ type: "done", reason: "toolUse", message: m }); }
-		stream.end();
-	} });
-	const engine = await f.adapter.engineFor(pin, "background");
-	const agent = new Agent({ streamFn: engine.streamFn, initialState: { model: engine.model, thinkingLevel: engine.level, tools: [{ name: "plugin_tool", label: "Fixture", description: "Fixture", parameters: Type.Object({ task: Type.String() }), execute: async () => ({ content: [{ type: "text", text: "Completed" }], details: {} }) }] } });
-	let observed = 0;
-	agent.subscribe((event) => {
-		if (event.type !== "message_end" || event.message.role !== "assistant") return;
-		assert.equal(event.message.usage, nativeUsage[observed]);
-		assert.equal(usageWasAdmitted(event.message.usage), observed === 0);
-		f.adapter.onUsage(pin, event.message.usage); observed++;
-	});
-	await agent.prompt("Explicit background task");
-	assert.equal(observed, 2);
-	assert.equal(f.calls.length, 2);
-	assert.equal(agent.state.messages.at(-1)?.role, "assistant");
-	assert.equal((agent.state.messages.at(-1) as AssistantMessage).errorMessage, "Background consent revoked before continuation");
-	assert.equal(ledger(f.directory).length, 1, "denied continuation never becomes a billed line");
 });
 
 test("managed accounting write failures are visible without logging request content; onUsage itself throws", { timeout: 3000 }, async (t) => {
@@ -410,7 +336,7 @@ test("bound worker generation options survive every native runner turn without l
 	});
 	assert.equal(result.text, "Finished"); assert.equal(f.calls.length, 2); assert.equal(ledger(f.directory).length, 2);
 	for (const call of f.calls) {
-		assert.equal(call.background, true); assert.equal(call.options.temperature, 0.3); assert.equal(call.options.maxTokens, 77); assert.equal(call.options.cacheRetention, "long");
+		assert.equal(call.options.temperature, 0.3); assert.equal(call.options.maxTokens, 77); assert.equal(call.options.cacheRetention, "long");
 		assert.deepEqual(call.options.metadata, { tag: "original" }); assert.equal(call.options.reasoning, "medium"); assert.equal(call.options.maxRetries, 0);
 		assert.equal(call.options.apiKey, undefined); assert.equal(call.options.headers, undefined); assert.equal(call.options.sessionId, undefined); assert(call.options.signal instanceof AbortSignal);
 	}
@@ -430,7 +356,6 @@ test("Claude Code explicit pins retain host availability gating without forwardi
 	const f = fixture(t, { model: pin });
 	const final = await f.adapter.inference.complete({ ...request(pin), purpose: "user" });
 	assert.equal(final.provider, pin.provider); assert.equal(final.model, pin.id); assert.equal(f.calls.length, 1);
-	assert.equal(f.calls[0]!.background, false);
 	assert.equal(f.calls[0]!.options.apiKey, undefined); assert.equal(f.calls[0]!.options.sessionId, undefined);
 	f.removeKey();
 	await assert.rejects(f.adapter.inference.complete(request(pin)), /Claude Code is unavailable.*Settings/);

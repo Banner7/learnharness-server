@@ -35,31 +35,6 @@ describe("clampDragged", () => {
 	});
 });
 
-describe("native traffic-light corner", () => {
-	const desktop = { ...viewport, trafficLights: { width: 92, height: 60 } };
-	it("excludes only the corner, using the closest available edge", () => {
-		assert.deepEqual(clampDragged({ x: 80, y: 10 }, { width: 416, height: 300 }, desktop), { x: 92, y: 10 });
-		assert.deepEqual(clampDragged({ x: 8, y: 50 }, { width: 416, height: 300 }, desktop), { x: 8, y: 60 });
-		assert.deepEqual(clampDragged({ x: 200, y: 8 }, { width: 416, height: 300 }, desktop), { x: 200, y: 8 });
-	});
-	it("also protects anchored openings, not just dragged windows", () => {
-		const placed = placeSideThread({ kind: "rect", rect: { left: 8, right: 40, top: 12, bottom: 28 }, viewport: desktop, contentHeight: 300 });
-		assert.ok(placed.style.left >= 92 || (placed.style.top ?? 0) >= 60);
-	});
-	it("fits resized/full-width frames below the corner across native zoom factors", () => {
-		for (const zoom of [0.8, 1, 1.5, 2]) {
-			const vp = { width: 350, height: 300, trafficLights: { width: 92 / zoom, height: 60 / zoom } };
-			for (const width of [200, 334]) for (const height of [160, 900]) for (const x of [-50, 8, 80, 300]) for (const y of [-10, 8, 50, 280]) {
-				const frame = fitSideThreadFrame({ x, y, height }, width, vp);
-				assert.ok(frame.x >= 8 && frame.y >= 8);
-				assert.ok(frame.x + width <= vp.width - 8);
-				assert.ok(frame.y + frame.height <= vp.height - 8);
-				assert.ok(frame.x >= vp.trafficLights.width || frame.y >= vp.trafficLights.height);
-			}
-		}
-	});
-});
-
 describe("eight-edge/corner resizing", () => {
 	const frame = { x: 400, y: 300, width: 600, height: 300 };
 	it("keeps the opposite edge fixed for every handle", () => {
@@ -82,15 +57,14 @@ describe("eight-edge/corner resizing", () => {
 		const tiny = fitResizableSideThreadFrame(frame, { width: 300, height: 100 });
 		assert.equal(tiny.width, 284); assert.equal(tiny.height, 84);
 	});
-	it("bounds all eight handles at extreme pointer positions and native zooms", () => {
-		for (const zoom of [0.5, 0.8, 1, 1.5, 2]) for (const windowWidth of [300, 800, 1400]) {
-			const vp = { width: windowWidth, height: 300, trafficLights: { width: 92 / zoom, height: 60 / zoom } };
+	it("bounds all eight handles at extreme pointer positions and window widths", () => {
+		for (const windowWidth of [300, 800, 1400]) {
+			const vp = { width: windowWidth, height: 300 };
 			for (const edge of ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as SideThreadResizeEdge[]) for (const travel of [{ x: -5000, y: -5000 }, { x: 5000, y: 5000 }]) {
 				const next = resizeSideThread(frame, edge, travel, vp);
 				assert.ok(next.width >= Math.min(SIDE_THREAD_WIDTH, vp.width - 16));
 				assert.ok(next.x >= 8 && next.y >= 8);
 				assert.ok(next.x + next.width <= vp.width - 8); assert.ok(next.y + next.height <= vp.height - 8);
-				assert.ok(next.x >= vp.trafficLights.width || next.y >= vp.trafficLights.height);
 			}
 		}
 	});

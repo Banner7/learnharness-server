@@ -2,7 +2,7 @@ import { Agent, type AgentEvent, type AgentMessage, type AgentTool } from "@eare
 import type { AssistantMessage, ToolResultMessage, Usage } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { APP_IDENTITY, piEngineFor, type PiEngine } from "../models.ts";
-import { usageWasAdmitted } from "../subscription-request-cycle.ts";
+import { usageWasAdmitted } from "../usage-admission.ts";
 import { workerRequestStream } from "../worker-request-admission.ts";
 import { providerEventObserver } from "../provider-events.ts";
 import { backgroundCaptureStream, createBackgroundCapture } from "../background-capture.ts";

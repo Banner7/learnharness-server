@@ -160,15 +160,11 @@ export function DraftShell({
 		/* CHROME-LESS CREATION SURFACE (owner round 11, 2026-10-05): the
 		 * drafts join home's register — no TopBar, no title (the serif title
 		 * always names a session; a draft has none). Home's proven pattern
-		 * verbatim: a drag mask first in the DOM, a floating reopen toggle
+		 * verbatim: a floating reopen toggle
 		 * (the only pointer-events-auto spot), the empty state carrying the
 		 * orientation. The chain picker then owns the column top exactly
 		 * like the graph view's — no stacked bars. */
 		<div className="relative flex h-dvh">
-			{/* Window-drag strip — deliberately FIRST in the DOM (the mask
-			    law: no-drag subtraction resolves by DOM order, so every
-			    carved control later in the tree subtracts correctly). */}
-			<div className="lh-drag absolute inset-x-0 top-0 h-13" aria-hidden="true" />
 			<div className="flex min-w-0 flex-1 flex-col">
 				<div ref={bodyRef} className="relative flex min-h-0 flex-1">
 					{/* The pointer-events pattern (953b22b): the sticky wrapper is
@@ -188,7 +184,7 @@ export function DraftShell({
 							</ConversationContent>
 						</Conversation>
 						<div className="h-24 bg-gradient-to-t from-background via-background/85 to-transparent" />
-						<div className="bg-background pb-4">
+						<div className="bg-background pb-[max(1rem,env(safe-area-inset-bottom))]">
 							<div className={DOCK}>
 								<ComposerActions
 									picker={(picks.length > 0 || mode === "practice") && (
@@ -230,7 +226,7 @@ export function DraftShell({
 			{/* The floating reopen toggle — pointer-events-none except the
 			    toggle itself (home's pattern), painted AFTER the overlay's
 			    column so nothing of it blocks the canvas area. */}
-			<header style={chromeStyle} className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2 px-3 py-2">
+			<header style={chromeStyle} className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pb-2 pl-[max(0.75rem,env(safe-area-inset-left))]">
 				<div className="pointer-events-auto">
 					<SidebarToggle />
 				</div>

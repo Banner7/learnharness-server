@@ -323,7 +323,6 @@ it("lazily loads the real Chains interface as one nonmodal main-pane view, prese
 		assert.equal(document.querySelector("#sidebar")!.children.length, 0);
 		assert.ok(overlay()!.querySelector('[data-testid="chain-table"]'));
 		assert.equal(overlay()!.querySelector('[aria-label="Open sidebar"]'), null);
-		assert.ok(overlay()!.querySelector('header.lh-native-window-clearance'));
 		assert.ok(overlay()!.querySelector('[data-testid="add-source-folder"]'));
 		assert.ok(overlay()!.querySelector('button[title="Rename"]'));
 		assert.equal(overlay()!.querySelector("[data-source-drag-row]")?.getAttribute("draggable"), "true");
@@ -889,46 +888,6 @@ it("pane view does not trap sidebar focus or mutate sidebar attributes, and Done
 		assert.equal(document.activeElement, button);
 		assert.equal(sidebar.outerHTML, before);
 	} finally { await f.dispose(); }
-});
-
-it("picker-only native clearance tracks real pane position through resize, scroll, and zoom without observer loops", async () => {
-	const f = await fixture();
-	const originalObserver = Object.getOwnPropertyDescriptor(globalThis, "ResizeObserver");
-	const prototype = f.dom.window.HTMLElement.prototype;
-	const originalRect = prototype.getBoundingClientRect;
-	let left = 0, resize = () => {}, zoom = () => {};
-	Object.defineProperty(globalThis, "ResizeObserver", { configurable: true, writable: true, value: class {
-		constructor(callback: () => void) { resize = callback; }
-		observe() {} disconnect() {}
-	} });
-	prototype.getBoundingClientRect = function () {
-		return this.matches("header.lh-native-window-clearance") ? { left } as DOMRect : originalRect.call(this);
-	};
-	window.lh = { platform: "darwin", expandWindow() {}, onZoom(callback) { zoom = () => callback(1.5); return () => {}; } };
-	try {
-		document.documentElement.classList.add("lh-electron"); document.documentElement.dataset.lhPlatform = "darwin";
-		document.documentElement.style.setProperty("--lh-zoom", "1.5");
-		await click(f, "practice-props-chip");
-		const header = overlay()!.querySelector<HTMLElement>("header")!;
-		assert.equal(header.style.getPropertyValue("--lh-header-left"), "0px");
-		left = 288; resize(); assert.equal(header.style.getPropertyValue("--lh-header-left"), "288px");
-		header.style.setProperty("--lh-header-left", "sentinel");
-		resize(); resize(); assert.equal(header.style.getPropertyValue("--lh-header-left"), "sentinel", "unchanged observer notifications never write another style");
-		left = 144; window.dispatchEvent(new f.dom.window.Event("resize"));
-		assert.equal(header.style.getPropertyValue("--lh-header-left"), "144px");
-		left = 72; zoom(); assert.equal(header.style.getPropertyValue("--lh-header-left"), "72px");
-		left = 0; window.dispatchEvent(new f.dom.window.Event("scroll"));
-		assert.equal(header.style.getPropertyValue("--lh-header-left"), "0px");
-		assert.equal(header.querySelector('[aria-label="Open sidebar"]'), null);
-		const css = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-		assert.match(css, /\[data-lh-platform="darwin"\] \.lh-native-window-clearance\s*\{\s*padding-left: calc\(0\.75rem \+ max\(0px, calc\(92px \/ var\(--lh-zoom\) - var\(--lh-header-left, 0px\)\)\)\);/);
-		assert.match(css, /--lh-wco-right: max\(0px, calc\(100vw - env\(titlebar-area-x, 0px\) - env\(titlebar-area-width, 100vw\)\)\);/);
-		assert.match(header.className, /lh-wco-gutter/, "Windows/Linux still use the existing CSS-coordinate right gutter");
-	} finally {
-		prototype.getBoundingClientRect = originalRect;
-		if (originalObserver) Object.defineProperty(globalThis, "ResizeObserver", originalObserver); else Reflect.deleteProperty(globalThis, "ResizeObserver");
-		await f.dispose();
-	}
 });
 
 it("host route lifetimes rotate on departure/re-entry and survive StrictMode's effect replay", async () => {

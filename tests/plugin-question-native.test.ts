@@ -20,7 +20,6 @@ const { newUserMessage, pendingPluginQuestionOf, toLlmMessages } = await import(
 const { preparePluginQuestionAnswer, preparePluginQuestionDismissal, pluginQuestionCompatibilityAppends, pluginQuestionAvailabilityOf } = await import("../src/server/plugin-questions.ts");
 const { assertPluginQuestionInputAllowed } = await import("../src/core/input-events.ts");
 const { projectView } = await import("../src/core/view.ts");
-const { SubscriptionRequestCycle } = await import("../src/agent/subscription-request-cycle.ts");
 const { persistTurn } = await import("../src/server/turn-service.ts");
 
 const definition = preparePluginQuestionType({
@@ -33,7 +32,7 @@ const contribution = { pluginId: "fixture", definition, variant: "probe" as cons
 function readEvents(text: string): any[] {
 	return text.split("\n").filter(line => line.startsWith("data: {")).map(line => JSON.parse(line.slice(6)));
 }
-async function nativePose(mixed = false, sameId = false, admission?: "admitted" | "denied") {
+async function nativePose(mixed = false, sameId = false) {
 	const faux = createFauxCore({});
 	faux.setResponses([
 		fauxAssistantMessage([
@@ -44,21 +43,12 @@ async function nativePose(mixed = false, sameId = false, admission?: "admitted" 
 		fauxAssistantMessage("Must not run over an unanswered successful pose."),
 	]);
 	const user = newUserMessage("Start");
-	const requestCycle = admission ? new SubscriptionRequestCycle({ initialMessages: [user], foregroundOwed: true, purpose: { background: false }, scopeCurrent: () => true, restoreAutomatic() {} }) : undefined;
 	const agent = createProberAgent({ chatId: "fixture" } as any, {
-		chatId: "fixture", messages: [user], requestCycle, engine: { model: faux.getModel(), streamFn: (model, context, options) => {
-			if (requestCycle) {
-				const scope = { accountId: "fixture", epoch: 1, authorityRevision: 1, selectedModelId: "fixture" };
-				requestCycle.captured(scope);
-				if (admission === "admitted") requestCycle.beforeDispatch(scope);
-				else requestCycle.noDispatch("all");
-			}
-			return faux.streamSimple(model, context, options);
-		} },
+		chatId: "fixture", messages: [user], engine: { model: faux.getModel(), streamFn: (model, context, options) => faux.streamSimple(model, context, options) },
 		pluginContributions: () => ({ instructions: [], tools: mixed ? [{ name: "ordinary", label: "ordinary", description: "Ordinary", parameters: Type.Object({}), execute: async () => ({ content: [{ type: "text", text: "Question posed" }], details: null }) }] : [], questionTypes: [contribution] }),
 	});
 	let canonical: LhMessage[] = [];
-	const handle = runPiTurn({ agent, requestCycle, usedToolCallIds: new Set(["call"]), onFinish(messages) { canonical = messages as LhMessage[]; } });
+	const handle = runPiTurn({ agent, usedToolCallIds: new Set(["call"]), onFinish(messages) { canonical = messages as LhMessage[]; } });
 	const wire = readEvents(await new Response(handle.subscribe()).text());
 	return { faux, agent, canonical, wire, user, handle };
 }
@@ -125,15 +115,6 @@ test("native validated-call object binding distinguishes identical IDs within on
 		if (event.message?.lhQuestions) for (const annotation of Object.values(event.message.lhQuestions) as any[]) assert.equal(annotation.questionId, undefined);
 		if (event.type === "turn_end") assert.equal(event.toolResults.length, 2, "only attested ack removed, including when failed sibling shares its ID");
 	}
-});
-
-test("subscription admission precedes question decoration and settlement; denied frames never establish wire or canonical authority", async () => {
-	const admitted = await nativePose(false, false, "admitted");
-	assert(pendingPluginQuestionOf(admitted.canonical));
-	assert(admitted.wire.some(event => event.message?.lhQuestions));
-	const denied = await nativePose(false, false, "denied");
-	assert.equal(pendingPluginQuestionOf(denied.canonical), undefined);
-	assert(!denied.wire.some(event => event.message?.lhQuestions || event.messages?.some((message: any) => message.lhQuestions)));
 });
 
 test("saved contract validation accepts false/zero/null/empty verbatim values and binds results to exact occurrence", async () => {

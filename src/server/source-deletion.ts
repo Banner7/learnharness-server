@@ -1,10 +1,11 @@
-import { deleteSourcesTraces } from "../core/graph-deletion.ts";
+import { deleteSourcesTraces, pruneDetachedNodes } from "../core/graph-deletion.ts";
 import { folderIsEmpty, type SourceDirectory } from "../core/source-organization.ts";
 import { extractionStatuses } from "../agent/subagents/extraction.ts";
 import { stores } from "./stores.ts";
 import { sourceDirectory } from "./source-organization.ts";
 import { deleteIdleChatRecord, runningWorkBlocker } from "./chats.ts";
 import { graphRevision } from "./graph.ts";
+import { VAULT_DIR } from "./vault-config.ts";
 
 export class SourceDeletionError extends Error {
 	constructor(message: string, public status = 400, public code = "invalid_source_deletion") { super(message); }
@@ -31,6 +32,16 @@ export function deleteSources(raw: unknown): SourceDirectory & { graphRevision: 
 	const directory = sourceDirectory.read(); // validate organization before any destructive write
 	const targets = directory.sources.filter((s) => request.sourceIds.includes(s.id));
 	if (targets.length && extractionStatuses().length) throw new SourceDeletionError("An extraction is running — try again when the activity dock drains.", 409, "extraction_running");
+	const records = stores.graphStore.readSources().filter((s) => request.sourceIds.includes(s.id));
+	// Vault library: a followed note still in the vault would reappear on the
+	// next scan and re-extract — the vault decides. Only a note gone from the
+	// vault (missing, skip-listed or not) or on the skip list (both carry
+	// missingSince) deletes here.
+	const present = VAULT_DIR ? records.filter((s) => s.vault && !s.vault.missingSince) : [];
+	if (present.length) {
+		const one = present.length === 1;
+		throw new SourceDeletionError(`${present.map((s) => s.vault!.path).join(", ")} ${one ? "is" : "are"} still in your vault. Delete ${one ? "it" : "them"} from the vault, or skip ${one ? "it" : "them"} in Settings → Library.`, 409, "vault_note_present");
+	}
 	if (request.deleteSessions) for (const entry of targets) if (entry.kind === "chat") {
 		const blocker = runningWorkBlocker(entry.id);
 		if (blocker) throw new SourceDeletionError(blocker.error, blocker.status, blocker.code);
@@ -38,6 +49,11 @@ export function deleteSources(raw: unknown): SourceDirectory & { graphRevision: 
 	// Clear the whole selected batch in one graph rewrite. Kept chats lose
 	// coverage/checkpoints too, so their unchanged messages can be re-extracted.
 	deleteSourcesTraces(stores.graphStore, new Set(targets.map((s) => s.id)), "delete-nodes");
+	// After a failed re-extraction a vault note's old ideas are detached: no
+	// provenance, listed only in vault.detached. Deleting the record would
+	// orphan them forever, so prune them first.
+	const pending = records.flatMap((s) => s.vault?.detached ?? []);
+	if (pending.length) pruneDetachedNodes(stores.graphStore, new Set(pending));
 	stores.graphStore.deleteSources(new Set(targets.filter((s) => s.kind === "notes").map((s) => s.id)));
 	const removed = new Set(request.sourceIds.filter((id) => !directory.sources.some((s) => s.id === id)));
 	for (const entry of targets) {

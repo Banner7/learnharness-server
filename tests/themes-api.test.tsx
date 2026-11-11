@@ -100,11 +100,11 @@ describe("picking a preset recolors the app and keeps my overrides", () => {
 			await put("appearance", { theme: "my-ayu", background: "#123456", codeLigatures: true });
 			if (missing === "deleted") fs.unlinkSync(path.join(THEMES_DIR, "my-ayu.json"));
 			else fs.writeFileSync(path.join(THEMES_DIR, "my-ayu.json"), "{truncated");
-			assert.equal(readThemeBoot().theme.id, "default");
+			assert.equal(readThemeBoot().theme.id, "automatic");
 			const res = await put("appearance", { ...readSettingsRecord()!.appearance, proseFontSize: 20 });
 			assert.equal(res.status, 200);
 			assert.deepEqual(readSettingsRecord()!.appearance, {
-				theme: "default", background: "#123456", codeLigatures: true, proseFontSize: 20,
+				theme: "automatic", background: "#123456", codeLigatures: true, proseFontSize: 20,
 			});
 			assert.equal((await put("appearance", { theme: "another-missing" })).status, 400, "new unknown selections still fail");
 		});
@@ -186,9 +186,9 @@ describe("removing the active custom theme falls back to Default without losing 
 		assert.equal(res.status, 200);
 		assert.ok(!fs.existsSync(path.join(THEMES_DIR, "my-ayu.json")));
 		const stored = readSettingsRecord()!.appearance!;
-		assert.equal(stored.theme, "default");
+		assert.equal(stored.theme, "automatic");
 		assert.deepEqual(stored.colors, { warning: "#123456" });
-		assert.ok(pressed(renderSection(), "default"));
+		assert.ok(pressed(renderSection(), "automatic"));
 	});
 
 	it("presets cannot be removed; unknown ids are a 404", async () => {

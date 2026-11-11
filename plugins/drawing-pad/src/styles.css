@@ -8,6 +8,11 @@
   min-height: 48px; padding: 8px 12px; overflow-x: auto; pointer-events: none;
 }
 .drawing-pad-tools > span { flex: 0 0 auto; pointer-events: auto; }
+/* Touch: finger-sized tools. */
+@media (pointer: coarse) {
+  .drawing-pad-tools { min-height: 60px; gap: 8px; padding: 8px max(12px, env(safe-area-inset-left)); }
+  .drawing-pad-tools > span button { min-width: 44px; min-height: 44px; }
+}
 .drawing-pad-viewport { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; }
 .drawing-pad-paper { position: absolute; inset: 0; overflow: hidden; }
 .drawing-pad-background { position: absolute; max-width: none; max-height: none; pointer-events: none; user-select: none; }

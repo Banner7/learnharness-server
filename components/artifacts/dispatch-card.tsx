@@ -45,7 +45,7 @@ export function DispatchCard({ toolCallId, kind }: { toolCallId: string; kind: J
 		return <DispatchRefusedCard label={label} line="needs model setup" button="Set up models" />;
 	}
 	if (isProviderKeyRefusal(job.error)) {
-		return <DispatchRefusedCard label={label} line="needs a provider key" button="Add a key" />;
+		return <DispatchRefusedCard label={label} line="needs a provider key" button="Set up providers" />;
 	}
 	const failed = job.status === "error";
 	return (

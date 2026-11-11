@@ -15,7 +15,7 @@ const originalEnv = process.env, originalFetch = globalThis.fetch;
 process.env = { PATH: originalEnv.PATH, HOME: directory, NODE_ENV: "test", NODE_TEST_CONTEXT: originalEnv.NODE_TEST_CONTEXT, LH_DATA_DIR: directory, LH_AUTH_FILE: path.join(directory, "auth.json"), ANTHROPIC_API_KEY: "fixture", OPENAI_API_KEY: "fixture", OPENROUTER_API_KEY: "fixture" };
 fs.writeFileSync(process.env.LH_AUTH_FILE!, "{}");
 globalThis.fetch = async () => { throw new Error("CLOSED: unexpected network request"); };
-const { piModels, piEngineForSpec, configureProviderSource } = await import("../src/agent/models.ts");
+const { piModels, piEngineForSpec } = await import("../src/agent/models.ts");
 const { clampModelsLevels, catalogSlots } = await import("../src/server/model-catalog.ts");
 const { readSettings, writeSettings } = await import("../src/store/settings.ts");
 const { PUT } = await import("../app/api/settings/[section]/route.ts");
@@ -89,7 +89,7 @@ test("untouched/default source produces exactly the native payload, including en
 		if (env === undefined) delete process.env.PI_CACHE_RETENTION; else process.env.PI_CACHE_RETENTION = env;
 		for (const spec of [model, { provider: "openai", id: "gpt-4o-mini" }, { provider: "openrouter", id: "anthropic/claude-sonnet-4.6" }]) {
 			const baseline = await payload(piEngineForSpec({ ...spec, thinkingLevel: "off" }));
-			const defaultSource = await payload(piEngineForSpec({ ...spec, thinkingLevel: "off" }, true, undefined, () => undefined));
+			const defaultSource = await payload(piEngineForSpec({ ...spec, thinkingLevel: "off" }, () => undefined));
 			assert.deepEqual(defaultSource, baseline, `${spec.provider}: untouched default must change nothing`);
 		}
 	}
@@ -99,7 +99,7 @@ test("untouched/default source produces exactly the native payload, including en
 test("explicit native preferences win over environment; resetting to default restores it in the SAME engine", async () => {
 	process.env.PI_CACHE_RETENTION = "long";
 	let retention: CacheRetention | undefined;
-	const engine = piEngineForSpec({ ...model, thinkingLevel: "off" }, true, undefined, () => retention);
+	const engine = piEngineForSpec({ ...model, thinkingLevel: "off" }, () => retention);
 	for (const value of [undefined, "short", "none", "long", undefined] as const) {
 		retention = value;
 		const body = await payload(engine);
@@ -146,9 +146,9 @@ test("real conversation wiring inherits live Strong retention without changing t
 	piModels().deleteProvider(id);
 });
 
-test("slot source passes native values unchanged; freshness and in-flight snapshot apply to built-in AND custom dispatch", async () => {
-	for (const custom of [false, true]) {
-		const id = custom ? "cache-custom-fixture" : "cache-native-fixture";
+test("slot source passes native values unchanged; freshness and in-flight snapshot apply per operation", async () => {
+	{
+		const id = "cache-native-fixture";
 		const faux = createFauxCore({});
 		const entry = { ...faux.getModel(), provider: id };
 		const seen: SimpleStreamOptions[] = [];
@@ -157,11 +157,9 @@ test("slot source passes native values unchanged; freshness and in-flight snapsh
 			faux.setResponses([fauxAssistantMessage([fauxText("done")])]);
 			return faux.streamSimple(m, c, options);
 		};
-		const provider = createProvider({ id, models: [entry], auth: { apiKey: { name: "fixture", resolve: async () => ({ auth: {} }) } }, api: { stream, streamSimple: stream } });
-		if (custom) configureProviderSource({ isCustom: (value) => value === id, sync: (models) => { models.setProvider(provider); } });
-		else piModels().setProvider(provider);
+		piModels().setProvider(createProvider({ id, models: [entry], auth: { apiKey: { name: "fixture", resolve: async () => ({ auth: {} }) } }, api: { stream, streamSimple: stream } }));
 		let retention: CacheRetention | undefined;
-		const engine = piEngineForSpec({ provider: id, id: entry.id }, true, undefined, () => retention);
+		const engine = piEngineForSpec({ provider: id, id: entry.id }, () => retention);
 		for (const value of [undefined, "long", "short", "none", undefined] as const) {
 			retention = value;
 			const request = engine.streamFn(engine.model, context, { sessionId: "same-agent" });

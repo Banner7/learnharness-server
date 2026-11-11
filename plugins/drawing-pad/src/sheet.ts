@@ -29,13 +29,20 @@ export function mountSheet(container: HTMLElement, ctx: PluginFrontendContext, s
   const background = document.createElement("img"); background.alt = "Frozen question reference";
   background.className = "drawing-pad-background"; background.draggable = false;
   const canvas = document.createElement("canvas"); canvas.className = "drawing-pad-ink";
-  canvas.setAttribute("aria-label", "Draw with a mouse or pen; pan with Hand or a right mouse drag");
+  canvas.setAttribute("aria-label", "Draw with a finger, pen or mouse; pan with two fingers, Hand, or a right mouse drag");
   const status = document.createElement("div"); status.className = "drawing-pad-status"; status.setAttribute("role", "status");
   paper.append(background, canvas); viewport.append(paper, status); root.append(toolbar, viewport); container.append(root);
   const buttons: PluginWidgetHandle<PluginButtonProps>[] = [];
   let disposed = false, preparing = !state.draft, active: Stroke | undefined, activeDraftId: number | undefined;
   let pointerId: number | undefined;
   let panDrag: { x: number; y: number; pan: SessionSheet["pan"]; rightButton: boolean } | undefined;
+  // Fingers on the sheet: one draws (or pans with Hand), two pan.
+  const touches = new Map<number, { x: number; y: number }>();
+  let twoFinger: { x: number; y: number; pan: SessionSheet["pan"] } | undefined;
+  const touchMidpoint = () => {
+    const [a, b] = [...touches.values()];
+    return { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 };
+  };
   let reference: HTMLElement | undefined;
   let referenceMount: ReturnType<typeof mountReference> | undefined;
   let failure: string | undefined;
@@ -114,7 +121,23 @@ export function mountSheet(container: HTMLElement, ctx: PluginFrontendContext, s
   };
   const down = (event: PointerEvent) => {
     const rightButton = event.pointerType === "mouse" && event.button === 2;
-    if (preparing || failure || !state.draft || pointerId !== undefined || event.pointerType === "touch" ||
+    if (event.pointerType === "touch") {
+      if (preparing || failure || !state.draft) return;
+      event.preventDefault();
+      touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (touches.size === 2) {
+        // A second finger turns the gesture into a pan: the first finger's
+        // stroke is dropped, not committed (it was the start of a pinch).
+        const first = pointerId;
+        pointerId = undefined; active = undefined; activeDraftId = undefined; panDrag = undefined;
+        if (first !== undefined && canvas.hasPointerCapture(first)) canvas.releasePointerCapture(first);
+        twoFinger = { ...touchMidpoint(), pan: state.pan };
+        render();
+        return;
+      }
+      if (touches.size > 2 || twoFinger) return;
+    }
+    if (preparing || failure || !state.draft || pointerId !== undefined ||
       (event.pointerType !== "pen" && event.button !== 0 && !rightButton)) return;
     event.preventDefault(); viewport.focus({ preventScroll: true });
     pointerId = event.pointerId; canvas.setPointerCapture(event.pointerId);
@@ -124,6 +147,16 @@ export function mountSheet(container: HTMLElement, ctx: PluginFrontendContext, s
     else if (event.pointerType !== "pen" || event.pressure > 0) start(event);
   };
   const move = (event: PointerEvent) => {
+    if (event.pointerType === "touch" && touches.has(event.pointerId)) {
+      touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (twoFinger) {
+        if (touches.size >= 2) {
+          const mid = touchMidpoint();
+          sheets.setPan(state, { x: twoFinger.pan.x + mid.x - twoFinger.x, y: twoFinger.pan.y + mid.y - twoFinger.y });
+        }
+        return;
+      }
+    }
     if (preparing || failure || !state.draft || pointerId !== event.pointerId) return;
     if (panDrag) {
       // Releasing Right while another mouse button is held emits pointermove,
@@ -148,6 +181,14 @@ export function mountSheet(container: HTMLElement, ctx: PluginFrontendContext, s
     if (draft && active?.tool === "eraser") render();
   };
   const finish = (event: PointerEvent) => {
+    if (event.pointerType === "touch" && event.type !== "lostpointercapture") touches.delete(event.pointerId);
+    if (twoFinger) {
+      // The pan ends when fewer than two fingers remain; the last finger
+      // lifts without drawing.
+      if (touches.size < 2) twoFinger = undefined;
+      render();
+      return;
+    }
     if (pointerId !== event.pointerId) return;
     if (panDrag && event.type === "pointerup" && event.pointerType !== "pen") sheets.setPan(state,
       { x: panDrag.pan.x + event.clientX - panDrag.x, y: panDrag.pan.y + event.clientY - panDrag.y });

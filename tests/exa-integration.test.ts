@@ -11,7 +11,9 @@ process.env.LH_DATA_DIR = path.join(dir, "data");
 process.env.LH_AUTH_FILE = path.join(dir, "auth.json");
 for (const name of ["TAVILY_API_KEY", "BRAVE_API_KEY", "EXA_API_KEY", "FIRECRAWL_API_KEY", "OLLAMA_API_KEY"]) delete process.env[name];
 
-const { saveKey, keyStatuses } = await import("../src/server/keys.ts");
+const { keyStatuses } = await import("../src/server/keys.ts");
+// Keys are server environment only; tests set them the way an operator would.
+const saveKey = (name: string, value: string) => { process.env[name] = value; return { ok: true }; };
 const { writeSettings } = await import("../src/store/settings.ts");
 const { searchStatus, searchProvider } = await import("../src/server/search.ts");
 const realFetch = globalThis.fetch;

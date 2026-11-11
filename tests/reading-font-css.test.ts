@@ -28,13 +28,10 @@ function rules(selector: string): string[] {
 	return [...css.matchAll(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]+)\\}`, "g"))].map(match => match[1]!);
 }
 
-it("reading utilities consume the live appearance variable, not a baked Source Sans 3 stack", () => {
-	for (const selector of [".font-prose", ".font-sans"]) {
-		assert.equal(rules(selector).length, 1, selector);
-		assert.match(rules(selector)[0]!, /font-family:\s*var\(--font-prose\);/);
-	}
-	assert.match(css, /--font-prose:\s*var\(--font-sans3\), ui-sans-serif, system-ui, sans-serif;/,
-		"reset/unset retains the bundled default and its fallback stack");
+it("the reading utility consumes the live appearance variable, not a baked stack", () => {
+	assert.equal(rules(".font-prose").length, 1);
+	assert.match(rules(".font-prose")[0]!, /font-family:\s*var\(--font-prose\);/);
+	assert.match(css, /--font-prose:\s*"lh-cmu", serif;/, "reset/unset retains the bundled Computer Modern default");
 });
 
 it("no compiled font-family declaration bypasses the reading setting via the loading-face variable", () => {
@@ -42,9 +39,10 @@ it("no compiled font-family declaration bypasses the reading setting via the loa
 });
 
 it("mono chrome/code and the independent serif title remain separate font contracts", () => {
-	for (const selector of [".font-ui", ".font-mono"]) {
-		assert.match(rules(selector)[0]!, /font-family:\s*var\(--font-jetbrains\), ui-monospace, SFMono-Regular, monospace;/);
+	for (const selector of [".font-ui", ".font-sans"]) {
+		assert.match(rules(selector)[0]!, /font-family:\s*var\(--font-atkinson\), ui-sans-serif, system-ui, sans-serif;/);
 	}
+	assert.match(rules(".font-mono")[0]!, /font-family:\s*var\(--font-jetbrains\), ui-monospace, SFMono-Regular, monospace;/);
 	assert.match(rules("body")[0]!, /font-family:\s*var\(--font-ui\);/);
 	assert.match(rules(".font-title").join("\n"), /font-family:\s*var\(--font-title\);/);
 	assert.match(css, /--font-title:\s*"lh-cmu", serif;/);
@@ -57,8 +55,6 @@ it("reading-family repair does not change reading/input size, leading, or title 
 	assert.match(rules(".lh-input")[0]!, /font-family:\s*var\(--font-prose\);/);
 	assert.match(rules(".lh-input")[0]!, /font-size:\s*var\(--lh-prose-size\);/);
 	assert.match(rules(".lh-input")[0]!, /line-height:\s*1\.25;/);
-	assert.match(rules(".font-title").join("\n"), /font-weight:\s*900;/);
-	for (const selector of [".font-prose", ".font-sans"]) {
-		assert.doesNotMatch(rules(selector).join("\n"), /font-size:|line-height:/);
-	}
+	assert.match(rules(".font-title").join("\n"), /font-weight:\s*400;/);
+	assert.doesNotMatch(rules(".font-prose").join("\n"), /font-size:|line-height:/);
 });

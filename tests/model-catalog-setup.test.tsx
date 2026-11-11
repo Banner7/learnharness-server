@@ -114,43 +114,17 @@ test("zero providers always means exclusive connection stage; reconnect with all
 	let closed = 0, completed = 0;
 	await render(<><Reader />{setup(() => { closed++; }, () => { completed++; })}</>); await answer(1, catalog());
 	await click("setup-trigger-strong");
-	await act(async () => notifySettingsSaved("keys"));
-	assert.ok(element("setup-stage-loading"));
-	assert.equal(document.querySelector('[data-testid="model-option-claude-opus-5-5"]'), null);
+	await act(async () => notifySettingsSaved("models"));
 	await answer(2, catalog(false));
 	assert.ok(element("setup-stage-keys"));
 	assert.equal(document.querySelector('[data-testid="setup-stage-pickers"]'), null);
 	assert.equal(document.querySelector('[data-testid="setup-add-provider"]'), null);
 	assert.equal(document.querySelector('[data-testid="setup-save"]'), null);
-	await act(async () => notifySettingsSaved("keys"));
+	await act(async () => notifySettingsSaved("models"));
 	const other = catalog(false); other.providers = [{ id: "other", envVar: "OTHER_KEY", keyPresent: true }];
 	await answer(3, other);
 	assert.equal(closed, 1); assert.equal(completed, 0); assert.deepEqual(writes, []);
 	assert.equal(document.querySelector('[data-testid="setup-dialog"]'), null, "no intermediate picker frame after reconnect");
-});
-
-test("cold saved disconnected pins still enter the provider stage, without any model-selector frame", async () => {
-	installFetch(); await warm();
-	await act(async () => notifySettingsSaved("keys"));
-	const stages: Array<string | undefined> = [];
-	function Probe() {
-		React.useLayoutEffect(() => {
-			// HostDialog creates its portal in a layout effect; observe actual
-			// stages rather than a sibling's pre-portal layout pass.
-			const record = () => {
-				const stage = document.querySelector<HTMLElement>('[data-testid^="setup-stage-"]')?.dataset.testid;
-				if (stage && stage !== stages.at(-1)) stages.push(stage);
-			};
-			const observer = new MutationObserver(record);
-			observer.observe(document.body, { childList: true, subtree: true });
-			record();
-			return () => observer.disconnect();
-		}, []);
-		return null;
-	}
-	await render(<><Reader />{setup()}<Probe /></>);
-	await answer(1, catalog(false));
-	assert.deepEqual(stages, ["setup-stage-loading", "setup-stage-keys"]);
 });
 
 for (const count of [0, 1, 2]) test(`connecting with ${count} saved slots only requires the missing slots; stale identities/thinking survive`, async () => {
@@ -163,7 +137,7 @@ for (const count of [0, 1, 2]) test(`connecting with ${count} saved slots only r
 	let closed = 0; await render(<><Reader />{setup(() => { closed++; })}</>); await answer(1, before);
 	assert.ok(element("setup-stage-keys"));
 	const connected = { ...before, models: [{ ...b, provider: "other" }], providers: [{ id: "other", envVar: "OTHER_KEY", keyPresent: true }] };
-	await act(async () => notifySettingsSaved("keys")); await answer(2, connected);
+	await act(async () => notifySettingsSaved("models")); await answer(2, connected);
 	assert.ok(element("setup-stage-pickers")); assert.equal(document.querySelector('[data-testid="setup-stage-keys"]'), null); assert.equal(closed, 0);
 	for (const slot of ["strong", "cheap", "vision"] as const) {
 		if (before.slots[slot]) continue;
@@ -182,9 +156,9 @@ test("a partial setup's model/thinking edits survive exclusive provider recovery
 	await warm(before); await render(<><Reader />{setup()}</>); await answer(1, before);
 	await click("setup-trigger-strong"); await click("model-option-claude-opus-5-5");
 	await click("setup-thinking-strong"); await click("thinking-option-medium");
-	await act(async () => notifySettingsSaved("keys")); await answer(2, { ...before, models: [], providers: [] });
+	await act(async () => notifySettingsSaved("models")); await answer(2, { ...before, models: [], providers: [] });
 	assert.ok(element("setup-stage-keys")); assert.equal(document.querySelector('[data-testid="setup-stage-pickers"]'), null);
-	await act(async () => notifySettingsSaved("keys")); await answer(3, before);
+	await act(async () => notifySettingsSaved("models")); await answer(3, before);
 	assert.equal(element("setup-trigger-strong").textContent, "claude-opus-5-5▾");
 	assert.equal(element("setup-thinking-strong").textContent?.trim(), "medium▾");
 	await render(<Reader />); await render(<><Reader />{setup()}</>);
@@ -200,7 +174,7 @@ test("Agent opens with cached thinking metadata; refresh and disconnect never cl
 	await click("slot-thinking-strong"); assert.deepEqual(levels(), ["off", "low✓", "high"]);
 	assert.equal(element("slot-model-strong").textContent, "model:free▾");
 	await answer(1, catalog());
-	await act(async () => notifySettingsSaved("keys")); await answer(2, catalog(false));
+	await act(async () => notifySettingsSaved("models")); await answer(2, catalog(false));
 	assert.equal(element("slot-thinking-strong").textContent, "low▾");
 	await click("thinking-option-xhigh"); assert.equal(changed?.strong?.thinkingLevel, "xhigh"); assert.equal(changed?.strong?.model?.id, a.id);
 });
@@ -210,7 +184,7 @@ test("saved completeness follows ordinary repairs and survives temporary connect
 	function StateReader() { state = useModelSetup(false); return null; }
 	await render(<StateReader />); await answer(0, catalog());
 	assert.equal(state!.configured, true);
-	await act(async () => notifySettingsSaved("keys")); assert.equal(state!.configured, true);
+	await act(async () => notifySettingsSaved("models")); assert.equal(state!.configured, true);
 	const partial = catalog(false); partial.slots.vision = null;
 	await answer(1, partial); assert.equal(state!.configured, false); assert.equal(state!.zeroKeys, true);
 	await act(async () => notifySettingsSaved("models")); await answer(2, catalog(false));
@@ -368,10 +342,9 @@ test("initial setup exposes no advanced controls and preserves all saved retenti
 	assert.equal(writes[0]?.strong?.model?.id, b.id);
 });
 
-test("OpenCode's saved shared credential names both Pi providers without changing addable-provider semantics", () => {
+test("OpenCode's saved shared credential names both Pi providers", () => {
 	const providers = [{ id: "opencode", envVar: "OPENCODE_API_KEY", label: "OpenCode Zen" }, { id: "opencode-go", envVar: "OPENCODE_API_KEY", label: "OpenCode Go" }];
 	assert.equal(providerKeyLabel("OPENCODE_API_KEY", providers), "OpenCode (Zen / Go)");
 	assert.equal(providerKeyLabel("OPENCODE_API_KEY", [...providers].reverse()), "OpenCode (Zen / Go)");
 	assert.equal(providerKeyLabel("FIXTURE_KEY", [provider]), "Fixture");
-	assert.equal(classifyKeys([{ id: "OPENCODE_API_KEY", info: null, present: true, masked: "…fake", source: "file", shadowedByEnv: false }], providers).addable.length, 0);
 });

@@ -5,7 +5,7 @@ import { Type } from "typebox";
 import { normalizeContext, type AssistantMessage, type AssistantMessageEvent, type Model, type Api, type StreamFunction } from "@earendil-works/pi-ai";
 import { AssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import { configureWorkerRequestAdmission, refreshWorkerRequestAdmission, workerRequestStream } from "../src/agent/worker-request-admission.ts";
-import { usageWasAdmitted } from "../src/agent/subscription-request-cycle.ts";
+import { usageWasAdmitted } from "../src/agent/usage-admission.ts";
 
 const key = Symbol.for("lh.worker-request-admission.pool.v1");
 const globals = globalThis as typeof globalThis & { [key]?: { active: number; limit: number; queue: unknown[] } };

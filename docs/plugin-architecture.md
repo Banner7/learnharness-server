@@ -7,9 +7,9 @@ the matching source/build's API v1.
 ## Boundaries and ownership
 
 Plugins are trusted local code. Backends execute cooperatively in the existing Node
-server; frontends execute in the application page, not an untrusted iframe. Electron
-renderer isolation and desktop HTTP credential boundaries remain in force, but the
-plugin API is not a filesystem/network sandbox or resource-isolation guarantee.
+server; frontends execute in the application page, not an untrusted iframe. The server's
+access gate still applies to every plugin route, but the plugin API is not a
+filesystem/network sandbox or resource-isolation guarantee.
 
 The host owns package identity/compatibility, enable state, lifetimes, native session
 contracts, persistence/admission and credential transport. Plugins own feature data,
@@ -64,7 +64,7 @@ Code/data locations are explicit:
 
 `core-plugins.json` selects Flashcards, Coding Questions, Drawing Pad and Rich Code Blocks.
 `plugins:build-core` builds/stages those packages, assets and licenses before supported
-web/desktop dev and production builds. UI Showcase stays a developer example. Staging
+dev and production builds. UI Showcase stays a developer example. Staging
 validates before replacing old generated output; failed builds preserve the previous
 staged tree. `build-server.mjs` requires the exact catalog, copies built core packages
 and removes the exact traced standalone-root `plugins/` authoring tree. It never removes
@@ -76,8 +76,7 @@ remain reserved when a package is missing/corrupt; community collisions are skip
 reported separately without changing files or blocking the legitimate core package.
 Shared corrupt enable metadata is refused rather than overwritten.
 
-Electron sets `LH_DATA_DIR` to `<Electron userData>/data`; on macOS this is
-`~/Library/Application Support/LearnHarness/data/`. Ordinary development defaults to
+The Docker image sets `LH_DATA_DIR` to `/data`. Ordinary development defaults to
 repository `data/`. Backend activation and disabled-package task recovery use the same
 origin-aware writable path resolver; neither falls back to old community copies of core
 data. Recovery never executes plugin code or creates missing data directories.
@@ -229,7 +228,7 @@ One process-global FIFO admission pool limits background **model streams**, rele
 permits before tools/child waits. It covers native background workers and all detached
 plugin workers, not direct teaching/practice/compaction, interactive managed conversations
 or raw plugin inference. `agent.workerRequestConcurrency` defaults to 8, accepts positive
-safe integers and updates live. Purpose governs subscription consent, not pool membership.
+safe integers and updates live. Purpose does not affect pool membership.
 Standalone worker activity uses Background agents without duplicating linked-job rows.
 
 The existing per-window app notification connection carries availability/app events and

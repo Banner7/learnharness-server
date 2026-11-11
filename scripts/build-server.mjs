@@ -1,5 +1,5 @@
 /**
- * build-server.mjs — curate the Electron shell's server payload.
+ * build-server.mjs — curate the standalone server payload.
  *
  * `next build` (output: "standalone") produces .next/standalone/ with
  * server.js + the traced node_modules subset, but leaves two pieces
@@ -7,8 +7,8 @@
  * This script finishes the job and sanity-checks the result — including
  * the exclusion that keeps the repo's real data/ OUT of the bundle
  * (see next.config.ts outputFileTracingExcludes). It also removes exact
- * build-only paths the tracer sweeps in: plugin authoring projects,
- * old installers and the development Electron runtime. Broad trace exclusions break externals.
+ * build-only paths the tracer sweeps in: plugin authoring projects and
+ * stale dist/ output. Broad trace exclusions break externals.
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -63,6 +63,16 @@ for (const secret of ["auth.json", ...subscriptionSecrets, ".env", ".env.local"]
 	}
 }
 
+// 2d) Safety: deployment secrets/ and Claude CLI state claude/ must never be
+// traced into the payload, at any depth.
+for (const entry of fs.readdirSync(STANDALONE, { recursive: true, withFileTypes: true })) {
+	if (entry.isDirectory() && (entry.name === "secrets" || entry.name === "claude")) {
+		console.error(`[build-server] REFUSING: standalone contains ${path.relative(STANDALONE, path.join(entry.parentPath, entry.name))}/ — deployment secrets would ship in the app.`);
+		console.error("             Check outputFileTracingExcludes in next.config.ts and .dockerignore.");
+		process.exit(1);
+	}
+}
+
 // Assemble plugin assets only after refusing unsafe traced data/credentials.
 // Runtime native plugin loader is deliberately outside Next's module graph.
 // Copy it explicitly: external plugin entries must be loaded by native Node,
@@ -84,14 +94,11 @@ try {
 buildPluginAuthoring({ root: ROOT, standalone: true });
 
 // 2c) Payload curation (2026-10-11): the trace sweep can copy repo-root
-// plugins/ (authoring sources/tests), dist/ (previous installers), and the development Electron
-// runtime (the demo helper's dev-only require). Neither belongs in the
-// server: packaged helpers use process.execPath, the app's own binary.
-// Remove ONLY these standalone-root paths AFTER tracing — excluding a
-// generic dist/** earlier broke pi-ai / pi-agent-core's runtime dist/.
-// Never touch ROOT/dist or ROOT/node_modules/electron (the running app
-// and the build runtime); native canvas/resvg packages stay untouched.
-for (const extra of ["plugins", "dist", path.join("node_modules", "electron")]) {
+// plugins/ (authoring sources/tests) and dist/. Neither belongs in the
+// server. Remove ONLY these standalone-root paths AFTER tracing — excluding
+// a generic dist/** earlier broke pi-ai / pi-agent-core's runtime dist/.
+// Never touch ROOT/dist; native canvas/resvg packages stay untouched.
+for (const extra of ["plugins", "dist"]) {
 	const target = path.join(STANDALONE, extra);
 	if (exists(target)) {
 		fs.rmSync(target, { recursive: true, force: true });

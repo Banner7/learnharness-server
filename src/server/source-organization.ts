@@ -66,7 +66,28 @@ export function createSourceDirectory(deps: { chatStore: ChatStore; graphStore: 
 		const next = placeImportedSource(state, id, filePath, freshFolder);
 		if (next !== state) deps.sourceOrganizationStore.write(next);
 	}
-	return { read, change, registerImport };
+	/** Vault library: vault notes live in real folders that mirror their
+	 * vault directories (the same `importPath` reconstruction as uploads). A
+	 * new note is placed once; a note whose file moved to another directory
+	 * is placed again, keeping a display-name override. Elsewhere existing
+	 * placements win, so learner reorganization survives edits and renames
+	 * within a directory. One organization write per call. */
+	function placeVaultSources(notes: readonly { id: string; filePath: string; previousPath?: string }[]): void {
+		if (notes.length === 0) return;
+		const directoryOf = (filePath: string) => filePath.split("/").slice(0, -1).join("/");
+		const original = deps.sourceOrganizationStore.read();
+		let state = original;
+		for (const note of notes) {
+			const placed = placementOf(state, note.id);
+			if (placed && note.previousPath !== undefined && directoryOf(note.previousPath) !== directoryOf(note.filePath)) {
+				const { [note.id]: _moved, ...placements } = state.placements;
+				state = placeImportedSource({ ...state, placements }, note.id, note.filePath, freshFolder);
+				if (placed.name) state.placements[note.id] = { ...state.placements[note.id]!, name: placed.name };
+			} else state = placeImportedSource(state, note.id, note.filePath, freshFolder);
+		}
+		if (state !== original) deps.sourceOrganizationStore.write(state);
+	}
+	return { read, change, registerImport, placeVaultSources };
 }
 
 export const sourceDirectory = createSourceDirectory(stores);

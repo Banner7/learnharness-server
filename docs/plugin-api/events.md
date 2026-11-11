@@ -51,7 +51,6 @@ export interface ServerEvents {
     "activity-changed": Record<string, never>;
     "chats-changed": Record<string, never>;
     "sources-changed": Record<string, never>;
-    "subscriptions-changed": Record<string, never>;
     "record-changed": {
         chatId: string;
     };
@@ -82,7 +81,6 @@ export interface ServerEvents {
 - ["activity-changed"](#serverevents-activity-changed)
 - ["chats-changed"](#serverevents-chats-changed)
 - ["sources-changed"](#serverevents-sources-changed)
-- ["subscriptions-changed"](#serverevents-subscriptions-changed)
 - ["record-changed"](#serverevents-record-changed)
 - ["record-changed".chatId](#serverevents-record-changedchatid)
 - ["compaction-changed"](#serverevents-compaction-changed)
@@ -169,14 +167,6 @@ Source inventory, display names, or organizational folders changed.
 
 ```ts
 "sources-changed": Record<string, never>;
-```
-
-### ServerEvents "subscriptions-changed"
-
-Web subscription state changed. No account or credential data on the bus.
-
-```ts
-"subscriptions-changed": Record<string, never>;
 ```
 
 ### ServerEvents "record-changed"

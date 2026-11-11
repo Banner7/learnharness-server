@@ -29,3 +29,10 @@ xai-credentials.json*
 
 # dev-fresh launcher scratch (fresh-user sim): disposable per launch
 .fresh-data/
+
+# Deployment state created by the deploy/ quick start — never commit.
+/secrets/
+/deploy/secrets/
+/claude/
+/vault/
+compose.yml

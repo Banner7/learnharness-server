@@ -1,19 +1,16 @@
 /**
- * smoke-server.mjs — boot the packaged standalone server and prove it serves.
+ * smoke-server.mjs — boot the standalone server and prove it serves.
  *
  * The payload gate that pays for itself (2026-10-08): `next build` success
- * and a completed electron-builder run say NOTHING about whether the
- * packaged server actually starts. On its first day this smoke caught two
- * real defects nothing else saw: (1) a trace-exclude regression that
- * stripped the pi engine packages to bare package.jsons — the server
- * answered 500 on every route with ERR_MODULE_NOT_FOUND; (2) before that,
- * the dev auth.json (BYOK keys) shipping inside the bundle. It runs
- * between build-server.mjs and electron-builder so a broken payload fails
- * in seconds, not after a full packaging pass.
+ * says NOTHING about whether the standalone server actually starts. On its
+ * first day this smoke caught two real defects nothing else saw: (1) a
+ * trace-exclude regression that stripped the pi engine packages to bare
+ * package.jsons — the server answered 500 on every route with
+ * ERR_MODULE_NOT_FOUND; (2) before that, the dev auth.json (BYOK keys)
+ * shipping inside the bundle. It runs after build-server.mjs so a broken
+ * payload fails in seconds.
  *
- * What it does: spawns .next/standalone/server.js exactly the way the
- * Electron shell does (electron/main.cjs) — with --electron it uses
- * Electron's bundled Node via ELECTRON_RUN_AS_NODE, otherwise host Node —
+ * What it does: spawns .next/standalone/server.js with host Node on
  * 127.0.0.1 on a kernel-assigned
  * free port, NODE_ENV=production, a THROWAWAY LH_DATA_DIR and an EMPTY
  * LH_AUTH_FILE under os.tmpdir() (no real keys or data ever touch it) —
@@ -25,12 +22,12 @@
  * way, same day).
  */
 import { spawn } from "node:child_process";
+import * as crypto from "node:crypto";
 import { probeEnv, verifyDemoRuntime } from "./smoke-demo-runtime.mjs";
 import { verifyProviderRuntime } from "./smoke-provider-runtime.mjs";
 import { createPluginSmokeFixture, verifyPluginServer } from "./smoke-plugin-runtime.mjs";
 import { verifyCorePlugins } from "./smoke-core-plugins.mjs";
 import { verifyCompressionRuntime } from "./smoke-compression-runtime.mjs";
-import { createRequire } from "node:module";
 import * as fs from "node:fs";
 import * as http from "node:http";
 import * as net from "node:net";
@@ -42,8 +39,7 @@ const SOURCE_STANDALONE = path.join(ROOT, ".next", "standalone");
 const ISOLATED_MODE = process.argv.includes("--isolated");
 const BROWSER_MODE = process.argv.includes("--browser");
 let isolatedRoot;
-const ELECTRON_MODE = process.argv.includes("--electron");
-const RUNTIME = ELECTRON_MODE ? createRequire(import.meta.url)("electron") : process.execPath;
+const RUNTIME = process.execPath;
 
 const POLL_MS = 500;
 const BOOT_TIMEOUT_MS = 30_000;
@@ -68,9 +64,9 @@ function freePort() {
 }
 
 /** One GET; resolves the status code (0 = connection refused/failed). */
-function get(url) {
+function get(url, headers) {
 	return new Promise((resolve) => {
-		const req = http.get(url, (res) => {
+		const req = http.get(url, { headers }, (res) => {
 			res.resume();
 			resolve(res.statusCode ?? 0);
 		});
@@ -102,6 +98,13 @@ async function main() {
 	verifyCompressionRuntime(standalone, RUNTIME);
 	const port = await freePort();
 	const url = `http://127.0.0.1:${port}`;
+	// The web-access gate fails closed: give the child an origin and a token,
+	// and send the matching Basic credentials (plus Origin for mutations).
+	const accessToken = crypto.randomBytes(32).toString("hex");
+	const authHeaders = {
+		Authorization: `Basic ${Buffer.from(`learnharness:${accessToken}`).toString("base64")}`,
+		Origin: url,
+	};
 	const home = fs.mkdtempSync(path.join(os.tmpdir(), "lh-smoke-"));
 	const dataDir = path.join(home, "data");
 	const authFile = path.join(home, "auth.json");
@@ -134,17 +137,18 @@ registerHooks({resolve(specifier,context,next){ const result=next(specifier,cont
 		for (const line of tail.slice(-40)) if (line.trim()) console.error(`    ${line}`);
 	};
 
-	console.log(`[smoke-server] runtime: ${ELECTRON_MODE ? "Electron bundled Node" : "host Node"}`);
+	console.log("[smoke-server] runtime: host Node");
 	const child = spawn(RUNTIME, [...imports, server], {
 		cwd: standalone,
 		env: {
 			...probeEnv(process.env, home),
-			...(ELECTRON_MODE ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
 			NODE_ENV: "production",
 			PORT: String(port),
 			HOSTNAME: "127.0.0.1",
 			LH_DATA_DIR: dataDir,
 			LH_AUTH_FILE: authFile,
+			LH_WEB_ORIGIN: url,
+			LH_WEB_ACCESS_TOKEN: accessToken,
 		},
 		stdio: ["ignore", "pipe", "pipe"],
 	});
@@ -180,7 +184,7 @@ registerHooks({resolve(specifier,context,next){ const result=next(specifier,cont
 		const deadline = Date.now() + BOOT_TIMEOUT_MS;
 		while (Date.now() < deadline) {
 			if (exited) throw new Error(`server exited before answering on ${url}`);
-			boot = await get(url);
+			boot = await get(url, authHeaders);
 			if (boot === 200) break;
 			await new Promise((r) => setTimeout(r, POLL_MS));
 		}
@@ -189,17 +193,17 @@ registerHooks({resolve(specifier,context,next){ const result=next(specifier,cont
 
 		// 2) API surface: every probe must be 200.
 		for (const route of PROBES) {
-			const status = await get(url + route);
+			const status = await get(url + route, authHeaders);
 			if (status !== 200) throw new Error(`GET ${route} → ${status} (expected 200)`);
 			console.log(`[smoke-server] GET ${route} → 200`);
 		}
-		await verifyCorePlugins({ root: ROOT, standalone, dataDirectory: dataDir, url });
-		await verifyPluginServer(url, home);
+		await verifyCorePlugins({ root: ROOT, standalone, dataDirectory: dataDir, url, headers: authHeaders });
+		await verifyPluginServer(url, home, authHeaders);
 		if (BROWSER_MODE) {
 			const { verifyPluginBrowser } = await import("./smoke-plugin-browser.mjs");
 			const evidenceDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "lh-plugin-browser-evidence-"));
 			console.log("[smoke-server] browser evidence:", evidenceDirectory);
-			await verifyPluginBrowser(url, { scratchDirectory: evidenceDirectory });
+			await verifyPluginBrowser(url, { scratchDirectory: evidenceDirectory, headers: { Authorization: authHeaders.Authorization } });
 		}
 	} catch (err) {
 		failed = err;

@@ -3,7 +3,7 @@
  * actual worker, with file modules confined to the standalone payload. No app,
  * provider, canvas, or network needed; a tiny synthetic PNG is generated here.
  *
- * node scripts/smoke-image-runtime.mjs [--standalone <dir>] [--runtime <Node/Electron>]
+ * node scripts/smoke-image-runtime.mjs [--standalone <dir>] [--runtime <node binary>]
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -22,7 +22,7 @@ export function verifyImageRuntime(standalone, runtime = process.execPath) {
 		fs.writeFileSync(path.join(home, "auth.json"), "{}\n", { mode: 0o600 });
 		const result = spawnSync(runtime, [fileURLToPath(import.meta.url), "--probe", path.resolve(standalone)], {
 			cwd: home,
-			env: { ...probeEnv(process.env, home), ELECTRON_RUN_AS_NODE: "1" },
+			env: probeEnv(process.env, home),
 			encoding: "utf8", timeout: 30_000, killSignal: "SIGKILL", maxBuffer: 128 * 1024,
 		});
 		if (result.status !== 0 || result.error) {

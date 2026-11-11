@@ -10,6 +10,9 @@ import { createPluginDocumentRoute, createPluginTransport } from "../src/server/
 import { createPluginDocumentConverter } from "../src/server/plugin-documents.ts";
 import { convertPdf } from "../src/agent/subagents/pdf-ops.ts";
 import { tinyPdf } from "./helpers/tiny-pdf.ts";
+import { configureGate, gateHeaders } from "./helpers/web-gate.ts";
+
+configureGate();
 
 const tick = async () => { for (let i = 0; i < 16; i++) await Promise.resolve(); };
 function deferred<T>() {
@@ -39,7 +42,7 @@ async function fixture(t: TestContext, pdfConverter = convertPdf) {
 		fetch: async (url, init) => {
 			const match = /^\/api\/plugins\/([^/]+)\/documents\/markdown$/.exec(String(url));
 			assert.ok(match, "only the document endpoint is called, never graph/import or generation");
-			const response = await route.POST(new Request(`http://localhost${url}`, init), { params: Promise.resolve({ id: decodeURIComponent(match[1]!) }) });
+			const response = await route.POST(new Request(`http://localhost${url}`, { ...init, headers: gateHeaders(init?.headers) }), { params: Promise.resolve({ id: decodeURIComponent(match[1]!) }) });
 			statuses.push(response.status); return response;
 		},
 		importModule: async () => ({ activate(context) { contexts.set(context.manifest.id, context); } }),

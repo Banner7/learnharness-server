@@ -1,6 +1,6 @@
 import type { AssistantMessage, AssistantMessageEvent, StreamFunction } from "@earendil-works/pi-ai";
 import { AssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
-import { markUnadmittedUsage } from "./subscription-request-cycle.ts";
+import { markUnadmittedUsage } from "./usage-admission.ts";
 
 const POOL_KEY = Symbol.for("lh.worker-request-admission.pool.v1");
 const WRAPPED_KEY = Symbol.for("lh.worker-request-admission.wrapped.v1");

@@ -10,6 +10,8 @@ export * from "./chats.ts";
 export * from "./graph.ts";
 export * from "./source-organization.ts";
 export * from "./source-deletion.ts";
+export { libraryStatus, missingVaultNotes, deleteMissingVaultNotes, drainLibrary, startVaultFollower } from "./library.ts";
+export { readLibrarySettings, syncVault } from "./vault.ts";
 export { NotesImportError } from "../agent/subagents/extraction.ts";
 export { convertPdf } from "../agent/subagents/pdf-ops.ts";
 export { joinPages } from "../agent/subagents/pdf-markdown.ts";
@@ -54,14 +56,9 @@ export { runPiTurn, piTurnResponse, type PiTurnHandle, type PiTurnSpec } from ".
 export * from "./observability.ts";
 export { abortPluginWorkerActivity } from "./plugin-worker-activity.ts";
 export * from "./model-catalog.ts";
-export { subscriptionControlsResponse, subscriptionBrowserResponse } from "./web-subscription-http.ts";
 export { sessionCost } from "./pricing.ts";
 export { initializePlugins, getPluginHost, getPluginAgentContributions, getPluginQuestionTypeResolver, pluginTransport } from "./plugins.ts";
 export { createPluginDocumentRoute } from "./plugin-transport.ts";
 export { pluginProblemAvailabilityOf, type ProblemTypeResolver } from "./plugin-problems.ts";
 export { pluginQuestionAvailabilityOf, reconcilePluginQuestionCompatibility, preparePluginQuestionDismissal, type QuestionTypeResolver } from "./plugin-questions.ts";
 export { claudeCodeInstallationResponse } from "./claude-code.ts";
-// The custom endpoint module (registers into piModels() + probes for models).
-// No import side effects; the boot sync lives in stores.ts.
-export * from "./custom-provider.ts";
-export { customProviderGet, customProviderMutation } from "./custom-provider-http.ts";

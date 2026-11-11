@@ -22,6 +22,7 @@ export * from "./chains.ts";
 export * from "./source-organization.ts";
 export * from "./source-selection.ts";
 export * from "./source-label.ts";
+export * from "./vault-sync.ts";
 export * from "./render-settings.ts";
 
 export * from "./question-core.ts";
@@ -60,9 +61,6 @@ export * from "./tool-parts.ts";
 export * from "./answer-presentation.ts";
 export * from "./prices.ts";
 export * from "./context-usage.ts";
-export type { ChatGPTStatus, ChatGPTControlBridge } from "./contracts/chatgpt.ts";
-export { NATIVE_SUBSCRIPTIONS } from "./contracts/subscriptions.ts";
-export type { NativeSubscriptionProviderId, NativeSubscriptionLogicalId, NativeSubscriptionStatus, NativeSubscriptionSnapshot, NativeSubscriptionScope, NativeSubscriptionControlBridge, SubscriptionInteraction, SubscriptionPrompt } from "./contracts/subscriptions.ts";
 export * from "./cost-summary.ts";
 export { CLAUDE_CODE_PROVIDER, CLAUDE_CODE_MINIMUM_VERSION, type ClaudeCodeStatus } from "./contracts/claude-code.ts";
 export * from "./fuzzy.ts";
@@ -87,8 +85,8 @@ export * from "./search.ts"; // search port (search wave, 2026-09-20)
 export * from "./session-find.ts";
 export * from "./session-navigation.ts";
 // auth-keys.ts (auth-keys wave, 2026-09-19): the curated key catalog +
-// shape rules + masking — pure, browser-safe (the auth page binds to the
-// /api/keys routes built on it).
+// shape rules + masking — pure, browser-safe (the read-only Providers page
+// and GET /api/keys status built on it).
 export * from "./auth-keys.ts";
 // keyboard.ts: the shortcut registry + binding normalization (pure, browser-safe).
 export * from "./keyboard.ts";

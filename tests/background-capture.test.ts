@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import type { AsyncLocalStorage } from "node:async_hooks";
-import type { BackgroundCapture } from "../src/agent/background-capture.ts";
 import * as fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -27,7 +25,7 @@ after(() => {
 	fs.rmSync(scratch, { recursive: true, force: true });
 });
 
-const { createBackgroundCapture, backgroundCaptureEnabled, backgroundCaptureDir, capturePreparedBackgroundPayload } = await import("../src/agent/background-capture.ts");
+const { createBackgroundCapture, backgroundCaptureEnabled, backgroundCaptureDir } = await import("../src/agent/background-capture.ts");
 const { runSubagent } = await import("../src/agent/subagents/pi-run.ts");
 const { streamSimple } = await import("@earendil-works/pi-ai/api/openai-completions");
 const { createFauxCore, fauxAssistantMessage, fauxText, fauxToolCall } = await import("@earendil-works/pi-ai");
@@ -79,10 +77,6 @@ function fakeEngine(failSecond = false, fixtureModel = model): PiEngine {
 		fetch: async (_url, init) => {
 			const request = JSON.parse(String(init?.body));
 			assert.equal(request.stream, true);
-			// Exercise the final prepared observer inside asynchronous transport
-			// work as well, so parallel workers test async-local association.
-			await Promise.resolve();
-			capturePreparedBackgroundPayload(request, fixtureModel);
 			calls++;
 			if (calls === 2 && failSecond) throw Object.assign(new TypeError("fetch failed"), {
 				cause: Object.assign(new Error("Headers Timeout Error"), { code: "UND_ERR_HEADERS_TIMEOUT" }),
@@ -229,22 +223,6 @@ test("concurrent workers retain independent per-run captures", async (t) => {
 		const other = record.role === "researcher" ? "extractor" : "researcher";
 		assert.ok(!JSON.stringify(record.request).includes(`Request for ${other}`));
 	}
-});
-
-test("prepared-payload observer uses the process-wide context shared by route module instances", async (t) => {
-	const dir = setup(t);
-	const capture = createBackgroundCapture({ role: "auditor", runId: "shared-context" })!;
-	capture.begin(model, { messages: [] });
-	const shared = (globalThis as typeof globalThis & { __lhBackgroundCaptureContext?: AsyncLocalStorage<BackgroundCapture> }).__lhBackgroundCaptureContext;
-	assert.ok(shared);
-	await shared.run(capture, async () => {
-		await Promise.resolve();
-		capturePreparedBackgroundPayload({ model: "final-prepared-model", input: [] }, model);
-	});
-	capture.finish();
-	const record = readCapture(dir);
-	assert.equal(record.request.format, "provider");
-	assert.equal(record.request.payload.model, "final-prepared-model");
 });
 
 test("cancelled requests retain their input and abort outcome", async (t) => {

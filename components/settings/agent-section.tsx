@@ -12,7 +12,7 @@
  * slot row carries the shared dropdown (fuzzy search, arrow-walk, Enter
  * pick — ModelMenuList/ThinkingMenuList from ./model-menu.tsx) over the
  * FEDERATED catalog (/api/models serves only keyed providers, fresh per
- * call — saving a key in Keys immediately widens this picker). The
+ * call — a provider configured on the server widens this picker). The
  * vision slot filters to image-capable models (Model.input). The slots
  * live in the `models` settings section (PUT /api/settings/models — slot
  * pins are engine-level, not per-chat); the rest of the section writes
@@ -79,8 +79,6 @@ import { prettyModel } from "@/components/usage-format";
 import { cn } from "@/lib/utils";
 import { SettingsGroup, SettingsRow, SettingsMenuTrigger, Toggle, CommitInput } from "./controls.tsx";
 import { ModelMenuList, ThinkingMenuList } from "./model-menu";
-import { ChatGPTBackgroundAccess } from "./chatgpt-connection";
-import { NativeSubscriptionBackgroundAccess } from "./subscription-connections";
 
 /** One slot's display identity — the tier's roster as the row hint rides
  *  with the resolved default (owner: the hint ALWAYS names the default). */
@@ -693,7 +691,6 @@ export function AgentSection({
 								ref={thisMenuOpen ? menuAnchorRef : undefined}
 								className={`relative flex items-center gap-2 ${advancedModels ? "shrink-0" : ""}`}
 							>
-								{slot !== "strong" && <><ChatGPTBackgroundAccess provider={coord?.provider} /><NativeSubscriptionBackgroundAccess provider={coord?.provider} /></>}
 								<MenuTrigger
 									value={modelId ? prettyModel(modelId) : ""}
 									hint={modelId ? `${provider}:${modelId}` : undefined}
@@ -761,7 +758,7 @@ export function AgentSection({
 											}}
 											footer={
 												catalog && catalog.length === 0
-													? "No models — add a provider key in Keys"
+													? "No models — configure a provider on the server"
 													: "Runs every agent of this tier"
 											}
 										/>

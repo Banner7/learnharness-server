@@ -330,17 +330,8 @@ mounts. It does not exercise actual host submission authority, Markdown renderin
 practice continuation or native conclusion. Those need checkout host integration tests,
 not just this exported project.
 
-`npm run test:native` is a checkout-oriented teaching harness. It requires built plugin
-files, an already built matching host in `LH_STANDALONE`, local Chrome and the checkout's
-macOS Electron Node runtime. The host must supply question grading, practice registrations
-and answered header/footer slots. The harness copies the host into disposable storage
-and uses faux-agent traffic and installed Node test programs; it does not cover practice
-turns. Its fixture installs a Community `coding-questions` package, an admission assumption
-incompatible with the reserved Core ID on a Core-packaged host. It is not a portable
-Core smoke test or an instruction to install a Community duplicate.
-
 Fixture checks do not establish real-provider correctness, microphone/IME behavior,
-physical Electron-window UX, signed-installer behavior or cross-platform execution.
+real host UX or cross-platform execution.
 Use synthetic data and loopback fixtures, never real learner profiles or paid providers.
 
 ## API boundary

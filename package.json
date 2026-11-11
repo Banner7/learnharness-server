@@ -1,17 +1,23 @@
 {
 	"name": "learnharness",
-	"version": "0.6.0",
+	"version": "0.1.0",
+	"pluginHostVersion": "0.6.0",
 	"license": "AGPL-3.0-only",
 	"author": {
 		"name": "Amos Blomqvist",
 		"email": "255718537+amosblomqvist@users.noreply.github.com"
 	},
-	"homepage": "https://github.com/amosblomqvist/learnharness",
-	"desktopName": "learnharness.desktop",
+	"homepage": "https://github.com/Banner7/learnharness-server",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Banner7/learnharness-server.git"
+	},
+	"bugs": {
+		"url": "https://github.com/Banner7/learnharness-server/issues"
+	},
 	"description": "An agent harness for learning: adaptive teaching, practice, and a persistent knowledge graph.",
 	"type": "module",
 	"private": true,
-	"main": "electron/main.cjs",
 	"scripts": {
 		"dev": "npm run plugins:build-core && npm run plugins:build-authoring && next dev -H localhost",
 		"build": "npm run plugins:build-core && npm run plugins:build-authoring && next build",
@@ -22,9 +28,7 @@
 		"plugins:setup": "node scripts/setup-plugins.mjs",
 		"plugins:build-authoring": "node scripts/build-plugin-authoring.mjs",
 		"plugins:build-core": "node scripts/build-core-plugins.mjs",
-		"desktop:dev": "concurrently -k \"npm run dev\" \"LH_DEV_URL=http://localhost:3000 electron .\"",
-		"dev:fresh": "bash scripts/dev-fresh.sh",
-		"desktop:dist": "rm -rf dist .next/standalone && npm run build && node scripts/smoke-provider-runtime.mjs && node scripts/build-server.mjs && node scripts/smoke-server.mjs && DEVELOPER_DIR=${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer} APPLE_KEYCHAIN_PROFILE=LH_NOTARY APPLE_TEAM_ID=JS6XN22HY6 electron-builder --mac --arm64"
+		"dev:fresh": "bash scripts/dev-fresh.sh"
 	},
 	"dependencies": {
 		"@earendil-works/pi-agent-core": "1.4.0",
@@ -53,7 +57,6 @@
 		"d3-shape": "^3.2.0",
 		"d3-zoom": "^3.0.0",
 		"dagre-d3-es": "7.0.14",
-		"electron-updater": "^6.8.9",
 		"embla-carousel-react": "^8.6.0",
 		"jose": "^6.2.12",
 		"katex": "0.18.2",
@@ -96,9 +99,6 @@
 		"@types/react-dom": "^19.2.4",
 		"@types/turndown": "^5.0.6",
 		"@typescript-eslint/parser": "^8.68.0",
-		"concurrently": "^10.0.5",
-		"electron": "^44.9.3",
-		"electron-builder": "26.16.1",
 		"eslint": "^9.39.5",
 		"eslint-import-resolver-typescript": "^4.4.5",
 		"eslint-plugin-import": "^2.32.0",

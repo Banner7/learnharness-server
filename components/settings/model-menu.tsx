@@ -21,9 +21,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ModelCatalogEntry } from "@/src/core";
-import { CLAUDE_CODE_PROVIDER, CUSTOM_PROVIDER, fuzzyScore, subscriptionLabel } from "@/src/core";
+import { CLAUDE_CODE_PROVIDER, fuzzyScore } from "@/src/core";
 import { formatTokens } from "@/components/usage-format";
 import { SearchMenuList } from "./search-menu-list";
+import { DEFAULT_READING_FONT } from "./appearance-section";
 
 function priceLabel(cost: ModelCatalogEntry["cost"]): string {
 	if (!cost) return "Unpriced";
@@ -55,17 +56,10 @@ export function ModelMenuList({
 	onPick: (entry: ModelCatalogEntry) => void;
 	/** Quiet footer note under the list (context-specific). */
 	footer?: string;
-	/** Vision slot: only image-capable models are selectable — plus every
-	 *  custom-endpoint model, whose capability the endpoint may not report.
-	 *  Image-capable ones float to the top. */
+	/** Vision slot: only image-capable models are selectable. */
 	vision?: boolean;
 }) {
-	// Vision slot: built-ins must report image input; custom-endpoint models
-	// stay selectable (the endpoint may not report a modality). Image-capable
-	// ones float to the top of the list.
-	const visionItems = vision
-		? models?.filter((m) => m.input.includes("image") || m.provider === CUSTOM_PROVIDER.id)
-		: models;
+	const visionItems = vision ? models?.filter((m) => m.input.includes("image")) : models;
 	return (
 		<>
 			<SearchMenuList
@@ -73,7 +67,6 @@ export function ModelMenuList({
 				itemKey={(m) => `${m.provider}/${m.id}`}
 				searchTerms={(m) => [m.provider, m.id, m.name]}
 				compare={(a, b) => a.id.localeCompare(b.id)}
-				prioritize={vision ? (m) => m.input.includes("image") : undefined}
 				isSelected={(m) => m.id === effectiveId && m.provider === (effectiveProvider ?? m.provider)}
 				onPick={onPick}
 				searchTestid="model-search"
@@ -85,12 +78,12 @@ export function ModelMenuList({
 				renderItem={(m) => <>
 					<span className="flex items-center justify-between gap-2">
 						<span className="truncate text-card-foreground">{m.name}</span>
-						<span className="shrink-0 tabular-nums text-muted-foreground" title={m.provider === CLAUDE_CODE_PROVIDER ? "Billing is determined by your Claude Code configuration; LearnHarness does not estimate it." : subscriptionLabel(`${m.provider}:${m.id}`) ? "Subscription connection" : m.cost ? "USD per 1M tokens in/out" : "Price unavailable"}>
-							{m.provider === CLAUDE_CODE_PROVIDER ? "CLI billing" : subscriptionLabel(`${m.provider}:${m.id}`) ?? priceLabel(m.cost)}
+						<span className="shrink-0 tabular-nums text-muted-foreground" title={m.provider === CLAUDE_CODE_PROVIDER ? "Billing is determined by your Claude Code configuration; LearnHarness does not estimate it." : m.cost ? "USD per 1M tokens in/out" : "Price unavailable"}>
+							{m.provider === CLAUDE_CODE_PROVIDER ? "CLI billing" : priceLabel(m.cost)}
 						</span>
 					</span>
 					<span className="flex items-center justify-between gap-2 text-muted-foreground">
-						<span className="truncate">{subscriptionLabel(`${m.provider}:${m.id}`) ? `${subscriptionLabel(`${m.provider}:${m.id}`)} (subscription)` : m.provider} · {m.id}</span>
+						<span className="truncate">{m.provider} · {m.id}</span>
 						<span className="shrink-0 tabular-nums">{m.contextWindow === null ? "—" : formatTokens(m.contextWindow)}</span>
 					</span>
 				</>}
@@ -145,99 +138,10 @@ export function ThinkingMenuList({
 	);
 }
 
-/** The provider-picker dropdown body (keys wave-5 polish, 2026-09-21:
- *  the owner wanted the Add-provider control to match the app's dropdown
- *  language) — the same fuzzy-search + arrow-walk + Enter machine over
- *  the pi-ai provider table. Rows read: provider label, its env var in
- *  quiet mono on the right. */
-export function ProviderMenuList({
-	providers,
-	onPick,
-}: {
-	providers: { id: string; envVar: string; label: string }[];
-	onPick: (provider: { id: string; envVar: string; label: string }) => void;
-}) {
-	const [query, setQuery] = useState("");
-	const [menuIdx, setMenuIdx] = useState<number | null>(null);
-	const searchRef = useRef<HTMLInputElement>(null);
-	const listRef = useRef<HTMLUListElement>(null);
-
-	useEffect(() => {
-		searchRef.current?.focus();
-	}, []);
-
-	useEffect(() => {
-		if (menuIdx === null) return;
-		listRef.current?.querySelector(`[data-idx="${menuIdx}"]`)?.scrollIntoView({ block: "nearest" });
-	}, [menuIdx]);
-
-	const results = providers
-		.map((p) => ({ p, s: fuzzyScore(query, p.id, p.envVar, p.label) }))
-		.filter((r) => r.s !== null)
-		.sort((a, b) => b.s! - a.s! || a.p.id.localeCompare(b.p.id))
-		.map((r) => r.p);
-
-	return (
-		<>
-			<input
-				ref={searchRef}
-				data-testid="provider-search"
-				value={query}
-				onChange={(e) => {
-					setQuery(e.target.value);
-					setMenuIdx(null);
-				}}
-				onKeyDown={(e) => {
-					if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-						e.preventDefault();
-						e.stopPropagation();
-						if (results.length === 0) return;
-						setMenuIdx((i) =>
-							e.key === "ArrowDown"
-								? Math.min((i ?? -1) + 1, results.length - 1)
-								: Math.max((i ?? results.length) - 1, 0),
-						);
-					} else if (e.key === "Enter") {
-						const chosen = results[menuIdx ?? 0];
-						if (chosen) {
-							e.preventDefault();
-							e.stopPropagation();
-							onPick(chosen);
-						}
-					}
-				}}
-				placeholder="Search providers…"
-				className="lh-input mb-1.5 w-full rounded-lg border bg-background px-2 py-1.5 text-foreground outline-none focus:ring-1 focus:ring-ring"
-			/>
-			{results.length === 0 && (
-				<div className="px-2 py-3 text-center text-muted-foreground">No providers match.</div>
-			)}
-			<ul ref={listRef} data-testid="provider-list" className="flex max-h-72 flex-col overflow-y-auto px-1">
-				{results.map((p, i) => (
-					<li key={p.id}>
-						<button
-							type="button"
-							data-testid={`provider-option-${p.id.replace(/[^a-z0-9-]/gi, "_")}`}
-							data-idx={i}
-							onClick={() => onPick(p)}
-							className={`flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left outline-none transition-colors hover:bg-muted ${
-								i === menuIdx ? "bg-accent/40 ring-1 ring-inset ring-border" : ""
-							}`}
-						>
-							<span className="truncate text-card-foreground">{p.label}</span>
-							<span className="shrink-0 font-mono text-[11px] text-muted-foreground">{p.envVar}</span>
-						</button>
-					</li>
-				))}
-			</ul>
-		</>
-	);
-}
-
 /** The reading-font dropdown's row set — the SAME fuzzy + arrow-walk +
  *  Enter machine over font families (appearance wave, 2026-09-26). The
  *  DEFAULT row (null) is a candidate like any family: it matches empty
- *  and "source"/"sans"/"default" queries, so an unfiltered list opens
+ *  and "computer"/"modern"/"serif"/"default" queries, so an unfiltered list opens
  *  with the default first and a searched list drops it honestly — Enter
  *  can never pick a row that isn't on screen. Pure — exported for
  *  tests. */
@@ -249,7 +153,7 @@ export function fontMenuResults(query: string, families: string[]): Array<string
 		.map((r) => r.f);
 	// The default row's searchable identity: the factory family + the
 	// word "default" (the suffix it renders with).
-	const defaultScore = fuzzyScore(query, "Source Sans 3", "default");
+	const defaultScore = fuzzyScore(query, DEFAULT_READING_FONT, "default");
 	if (query.trim() === "" || defaultScore !== null) return [null, ...scored];
 	return scored;
 }
@@ -280,7 +184,7 @@ export function FontMenuList({
 	/** Enumerated font families (already deduped/sorted by the caller);
 	 *  undefined while the enumeration runs. */
 	families: string[] | undefined;
-	/** The stored override (null = the factory Source Sans 3). */
+	/** The stored override (null = the factory default family). */
 	effectiveFamily: string | null;
 	/** Receives the pick: a family string, or null for the default. */
 	onPick: (family: string | null) => void;
@@ -356,7 +260,7 @@ export function FontMenuList({
 										i === menuIdx ? "bg-accent/40 ring-1 ring-inset ring-border" : ""
 									}${effective && i !== menuIdx ? " bg-muted/60" : ""}`}
 								>
-									<span className="truncate text-card-foreground">{family ?? "Source Sans 3"}</span>
+									<span className="truncate text-card-foreground">{family ?? DEFAULT_READING_FONT}</span>
 									<span className="shrink-0 text-muted-foreground">{isDefault ? "default" : effective && <span aria-hidden>✓</span>}</span>
 								</button>
 							</li>

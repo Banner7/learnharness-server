@@ -128,17 +128,6 @@ The DOM tests also require **`linkedom`**, which is supplied by the LearnHarness
 but is not declared in this project's package manifest. A copied project needs that
 test prerequisite supplied separately; its build only needs the declared `esbuild`.
 
-`npm run test:native` is a checkout-oriented maintainer harness, not a standalone-kit
-check. It requires `puppeteer-core`, local Chrome, an Electron Node runtime (checkout
-path by default, or `LH_NODE_RUNTIME`), an already built matching host in
-`LH_STANDALONE` and its `LH_APPROVED_HOST_DIGEST`, plus the built plugin. It copies
-host/package bytes into disposable storage and exercises native widgets against
-synthetic records with loopback catalog traffic. The harness assumes a
-Community-loaded `flashcards` fixture; that admission assumption is not compatible
-with the reserved Core ID on a Core-packaged host. Do not treat it as an instruction
-to install a Community duplicate or as a portable Core smoke test. Browser fixtures
-are not physical Electron-window, real-provider or human UX acceptance.
-
 ## Source reading route
 
 - [`src/main.js`](src/main.js): public view/actions/settings, knowledge selection,

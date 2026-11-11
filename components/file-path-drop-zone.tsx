@@ -2,14 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FileSymlinkIcon, XIcon } from "lucide-react";
-import { directoryReferencePath, quoteFilePath } from "@/src/core";
-import { appendToPrimaryInput } from "@/components/dictation";
-import { INSERT_FILE_PATHS_EVENT } from "@/components/path-input";
 
-export const BROWSER_NOTICE = "Local file paths can only be attached in the desktop app. You can paste a full path instead.";
+export const BROWSER_NOTICE = "Files from this device can't be attached: the app reads files on its server. You can paste a full server path instead.";
 
 /** The content area only: the sidebar is deliberately outside this zone.
- * Existing files stay where they are; only quoted path strings enter drafts. */
+ * A browser File carries no server path, so a drop only explains how to attach one. */
 export function FilePathDropZone({ children, className, onContentRoot }: {
 	children: React.ReactNode;
 	className?: string;
@@ -67,36 +64,7 @@ export function FilePathDropZone({ children, className, onContentRoot }: {
 				event.preventDefault();
 				event.stopPropagation();
 				clearDrag();
-				const resolve = window.lh?.getPathForFile;
-				if (!resolve) { setNotice(BROWSER_NOTICE); return; }
-				// Inspect only the dropped item's type, never traverse its entries.
-				// Positively known directories get a durable trailing separator.
-				const entries = Array.from(event.dataTransfer.items).filter((item) => item.kind === "file");
-				const paths: string[] = [];
-				let skipped = 0;
-				for (const [index, file] of Array.from(event.dataTransfer.files).entries()) {
-					try {
-						let directory = false;
-						try { directory = entries[index]?.webkitGetAsEntry?.()?.isDirectory === true; }
-						catch { /* Unknown type stays unmarked, not guessed. */ }
-						const original = resolve(file);
-						const path = directory ? directoryReferencePath(original) : original;
-						quoteFilePath(path); // Same rooted-path validity rule as typed chips.
-						paths.push(path);
-					} catch { skipped++; }
-				}
-				if (paths.length === 0) {
-					setNotice("No local file paths were available. Drop existing files or folders from your computer.");
-					return;
-				}
-				const focused = document.activeElement?.closest<HTMLElement>("[data-file-path-input]");
-				if (focused && event.currentTarget.contains(focused)) {
-					focused.dispatchEvent(new CustomEvent(INSERT_FILE_PATHS_EVENT, { detail: paths }));
-				} else if (!appendToPrimaryInput(paths.map(quoteFilePath).join(" "))) {
-					setNotice("Open a chat to attach file paths.");
-					return;
-				}
-				setNotice(skipped ? "Some dropped items had no available file path." : "");
+				setNotice(BROWSER_NOTICE);
 			}}
 		>
 			{children}
@@ -104,7 +72,7 @@ export function FilePathDropZone({ children, className, onContentRoot }: {
 				<div data-testid="file-path-drop-indicator" className="pointer-events-none absolute inset-2 z-50 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-background/85 p-6 text-center backdrop-blur-sm">
 					<div className="flex max-w-md flex-col items-center gap-3">
 						<FileSymlinkIcon className="size-8 text-primary" aria-hidden />
-						<span className="font-ui text-sm">{window.lh?.getPathForFile ? "Drop to attach file paths" : BROWSER_NOTICE}</span>
+						<span className="font-ui text-sm">{BROWSER_NOTICE}</span>
 					</div>
 				</div>
 			)}
