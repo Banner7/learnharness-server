@@ -1,6 +1,6 @@
 # LearnHarness — container deployment
 
-Build and run the v0.1.0 server (Next.js standalone) in a container, behind an
+Build and run the v0.1.1 server (Next.js standalone) in a container, behind an
 authenticated reverse proxy (e.g. Tailscale Serve). The app's own access gate
 is fail-closed: without the gate variables configured, **every request is
 refused**, which is the intended safety property for a public deployment.
@@ -12,7 +12,7 @@ refused**, which is the intended safety property for a public deployment.
 ## Build
 
 ```sh
-docker build -t learnharness:0.1.0 .
+docker build -t learnharness:0.1.1 .
 ```
 
 The build runs `npm ci` → `npm run plugins:setup` → `npm run build` (core
@@ -137,7 +137,6 @@ below are placeholders — generate real ones per the instructions.
 | `LH_DATA_DIR` | Mutable state root. Defaults to `/data` in the image. |
 | `LH_AUTH_FILE` | Optional flat JSON map of key variables (`{"OPENAI_API_KEY": "..."}`). Defaults to `/secrets/auth.json` in the image. The app only reads it and picks up edits without a restart; environment values take precedence. A single-file bind mount follows the original inode, so editors that save by replacing the file need `docker compose restart`. |
 | `LH_HOST_PORT` | Compose only: loopback host port to publish (default `3000`). |
-| `LH_IGNORE_ENV_KEYS` | Set to `1` to ignore inherited provider-key env vars app-wide. |
 
 ### Claude Code CLI
 

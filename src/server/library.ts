@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { NotesSource } from "../core/contracts.ts";
@@ -10,7 +9,7 @@ import { vaultEntryState, type LibraryStatus, type MissingVaultNote } from "../c
 import { extraction } from "./chat-handler.ts";
 import { deleteSources, SourceDeletionError } from "./source-deletion.ts";
 import { stores } from "./stores.ts";
-import { libraryPreferences, MAX_VAULT_NOTE_BYTES, readLibrarySettings, syncVault } from "./vault.ts";
+import { hashVaultNote, libraryPreferences, MAX_VAULT_NOTE_BYTES, readLibrarySettings, syncVault } from "./vault.ts";
 import { VAULT_DIR } from "./vault-config.ts";
 
 /**
@@ -148,7 +147,7 @@ async function extractNote(root: string, source: NotesSource): Promise<void> {
 		emit("sources-changed", {});
 		return;
 	}
-	const hash = createHash("sha256").update(bytes).digest("hex");
+	const hash = hashVaultNote(bytes);
 	// Refuse BEFORE detaching: a run that cannot start must leave the note's
 	// chains and coverage exactly as they were.
 	extraction.assertReady();

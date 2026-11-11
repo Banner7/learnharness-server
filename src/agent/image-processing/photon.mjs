@@ -1,5 +1,5 @@
 // Adapted from @earendil-works/pi-coding-agent 1.1.0, dist/utils/photon.js (MIT).
-// Source-vs-runtime adaptation: this app runs in Node/Electron, not a Bun
+// Source-vs-runtime adaptation: this server runs in Node, not a Bun
 // compiled executable. Photon loads its colocated WASM normally; no global fs
 // monkeypatch or executable-relative WASM fallback is needed.
 let photonModule = null;

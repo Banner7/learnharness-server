@@ -23,5 +23,4 @@ it("an inert paperclip sits between the input and Send, with no file picker", ()
 	const send = html.indexOf('aria-label="Send"');
 	assert.ok(editor >= 0 && editor < attach && attach < send, "the paperclip follows the input and precedes Send");
 	assert.match(html.slice(html.lastIndexOf("<", attach), html.indexOf(">", attach)), /aria-disabled="true"/);
-	assert.ok(!html.includes('type="file"'), "no device file picker");
 });

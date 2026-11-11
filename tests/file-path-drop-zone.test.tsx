@@ -1,22 +1,16 @@
 import React, { act } from "react";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { afterEach, test } from "node:test";
 import { parseHTML } from "linkedom";
 import { BROWSER_NOTICE, FilePathDropZone } from "../components/file-path-drop-zone.tsx";
-import { useDictationTarget } from "../components/dictation.tsx";
 import { PathInput } from "../components/path-input.tsx";
-import { readPathInput, restorePathSelection } from "../components/path-input-dom.ts";
-import { quoteFilePath } from "../src/core/file-paths.ts";
 
 let cleanup: (() => Promise<void>) | undefined;
 afterEach(async () => { await cleanup?.(); cleanup = undefined; });
 
 /** No native DataTransfer/Selection in linkedom. These shims exercise React's
- * real bubbling handlers and the editor's logical caret contract, not OS drag. */
-async function fixture({ desktop = true, claimed = true, onContentRoot }: {
-	desktop?: boolean;
-	claimed?: boolean;
+ * real bubbling handlers, not OS drag. */
+async function fixture({ onContentRoot }: {
 	onContentRoot?: (element: HTMLElement | null) => void;
 } = {}) {
 	const { window: win, document: doc } = parseHTML("<html><body><div id='root'></div></body></html>");
@@ -30,20 +24,11 @@ async function fixture({ desktop = true, claimed = true, onContentRoot }: {
 	};
 	Object.assign(doc, { getSelection: () => selection, oninput: null });
 	win.HTMLElement.prototype.focus = function () { active = this; };
-	const resolved: File[] = [];
-	const backingPaths = new Map<File, string | Error>();
-	const appends: string[] = [];
 	let byteReads = 0;
 	let uploads = 0;
 	let submits = 0;
 	let keys = 0;
 	let value = "readthis";
-	const bridge = desktop ? { getPathForFile(file: File) {
-		resolved.push(file);
-		const result = backingPaths.get(file);
-		if (result instanceof Error) throw result;
-		return result ?? "";
-	} } : undefined;
 	const previous = new Map<string, PropertyDescriptor | undefined>();
 	for (const [name, next] of Object.entries({
 		React, window: win, document: doc, Node: win.Node, HTMLElement: win.HTMLElement, Element: win.Element,
@@ -53,12 +38,9 @@ async function fixture({ desktop = true, claimed = true, onContentRoot }: {
 		previous.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
 		Object.defineProperty(globalThis, name, { configurable: true, writable: true, value: next });
 	}
-	const oldBridge = Object.getOwnPropertyDescriptor(win, "lh");
-	Object.defineProperty(win, "lh", { configurable: true, value: bridge });
 	const { createRoot } = await import("react-dom/client");
 	const root = createRoot(doc.getElementById("root")!);
 	function Harness() {
-		useDictationTarget((text) => appends.push(text), claimed);
 		return <>
 			<aside data-testid="sidebar">Sidebar</aside>
 			<FilePathDropZone onContentRoot={onContentRoot}>
@@ -74,27 +56,23 @@ async function fixture({ desktop = true, claimed = true, onContentRoot }: {
 	await act(async () => { draw(); });
 	cleanup = async () => {
 		await act(async () => { root.unmount(); });
-		if (oldBridge) Object.defineProperty(win, "lh", oldBridge);
-		else delete (win as unknown as Record<string, unknown>).lh;
 		for (const [name, descriptor] of previous) {
 			if (descriptor) Object.defineProperty(globalThis, name, descriptor);
 			else delete (globalThis as Record<string, unknown>)[name];
 		}
 	};
-	const editor = doc.querySelector<HTMLElement>('[data-testid="editor"]')!;
-	function file(name: string, path?: string | Error) {
+	function file(name: string) {
 		const result = new File(["synthetic bytes must never be read"], name, { type: "application/pdf" });
 		for (const method of ["text", "arrayBuffer", "stream"] as const) {
 			Object.defineProperty(result, method, { value: () => { byteReads++; throw new Error("No file content reads"); } });
 		}
-		if (path !== undefined) backingPaths.set(result, path);
 		return result;
 	}
-	function transfer(files: File[], directories: number[] = [], types = ["Files"]) {
+	function transfer(files: File[], types = ["Files"]) {
 		return {
 			types,
 			files: Object.assign([...files], { item: (index: number) => files[index] ?? null }),
-			items: files.map((file, index) => ({ kind: "file", type: file.type, getAsFile: () => file, webkitGetAsEntry: () => ({ isDirectory: directories.includes(index), isFile: !directories.includes(index) }) })),
+			items: files.map((file) => ({ kind: "file", type: file.type, getAsFile: () => file })),
 			dropEffect: "none",
 		};
 	}
@@ -104,20 +82,15 @@ async function fixture({ desktop = true, claimed = true, onContentRoot }: {
 		return event;
 	}
 	return {
-		doc, editor, appends, resolved, file, transfer, event,
+		doc, file, transfer, event,
 		get value() { return value; },
 		get status() { return doc.querySelector('[role="status"]')?.textContent ?? ""; },
-		focusEditor(offset: number) {
-			editor.focus();
-			restorePathSelection(editor, { anchor: offset, focus: offset });
-			doc.dispatchEvent(new win.Event("selectionchange"));
-		},
 		assertPathOnly() { assert.equal(byteReads, 0); assert.equal(uploads, 0); assert.equal(submits, 0); assert.equal(keys, 0); },
 	};
 }
 
 test("a device file drop prevents navigation, explains server paths and never infers File.name", async () => {
-	const f = await fixture({ desktop: false });
+	const f = await fixture();
 	const transfer = f.transfer([f.file("/not/a/backing/path.pdf")]);
 	const enter = await f.event("dragenter", transfer);
 	assert.equal(enter.defaultPrevented, true);
@@ -130,27 +103,23 @@ test("a device file drop prevents navigation, explains server paths and never in
 	assert.equal(f.status, BROWSER_NOTICE);
 	assert.equal(f.doc.querySelector('[data-testid="file-path-drop-indicator"]'), null);
 	assert.equal(f.value, "readthis");
-	assert.deepEqual(f.appends, []);
-	assert.deepEqual(f.resolved, []);
 	f.assertPathOnly();
 });
 
 test("non-file drags stay native; sidebar file drops prevent navigation without attaching", async () => {
 	const f = await fixture();
-	const plain = f.transfer([], [], ["text/plain"]);
+	const plain = f.transfer([], ["text/plain"]);
 	for (const type of ["dragenter", "dragover", "drop"]) {
 		assert.equal((await f.event(type, plain)).defaultPrevented, false);
 	}
 	const sidebar = f.doc.querySelector('[data-testid="sidebar"]')!;
-	assert.equal((await f.event("drop", f.transfer([f.file("notes.pdf", "/existing/notes.pdf")]), sidebar)).defaultPrevented, true);
-	assert.deepEqual(f.resolved, []);
-	assert.deepEqual(f.appends, []);
+	assert.equal((await f.event("drop", f.transfer([f.file("notes.pdf")]), sidebar)).defaultPrevented, true);
 	assert.equal(f.status, "");
 	f.assertPathOnly();
 });
 
 test("nested enter/leave depth keeps the drop overlay until the zone is left; notice is dismissible", async () => {
-	const f = await fixture({ desktop: false });
+	const f = await fixture();
 	const transfer = f.transfer([f.file("notes.pdf")]);
 	await f.event("dragenter", transfer);
 	await f.event("dragenter", transfer);
@@ -175,11 +144,4 @@ test("the host content root reports the real main column and clears on unmount",
 	await cleanup!();
 	cleanup = undefined;
 	assert.deepEqual(seen, [main, null]);
-});
-
-test("production AppShell places the sidebar outside its content-only drop zone", () => {
-	const source = readFileSync(new URL("../components/sidebar.tsx", import.meta.url), "utf8");
-	const shell = source.slice(source.indexOf("export function AppShell("));
-	assert.match(shell, /<SessionsSidebar\s*\/>\s*<FilePathDropZone\b[^>]*>\{children\}<\/FilePathDropZone>/);
-	assert.doesNotMatch(shell, /<FilePathDropZone\b[^>]*>[\s\S]*<SessionsSidebar/);
 });

@@ -1,4 +1,5 @@
 import type { NotesSource } from "./contracts.ts";
+import { globSource, globToRegex } from "./glob.ts";
 
 /**
  * Vault library reconcile: the vault is the library and LearnHarness
@@ -120,23 +121,12 @@ export function vaultPathExcluded(path: string, exclude: readonly string[]): boo
 }
 
 const globCache = new Map<string, RegExp>();
+/** A folder glob (trailing `/`) matches that folder's path as a prefix
+ *  (everything under it); a file glob must match the whole path. */
 function globRegex(pattern: string): RegExp {
 	let re = globCache.get(pattern);
 	if (re) return re;
-	const folder = pattern.endsWith("/");
-	const body = folder ? pattern.slice(0, -1) : pattern;
-	let src = "";
-	for (let i = 0; i < body.length; i++) {
-		const c = body[i]!;
-		if (c === "*" && body[i + 1] === "*") {
-			if (body[i + 2] === "/") { src += "(?:.*/)?"; i += 2; } else { src += ".*"; i += 1; }
-		} else if (c === "*") src += "[^/]*";
-		else if (c === "?") src += "[^/]";
-		else src += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-	}
-	// A folder glob matches that folder's path as a prefix (everything under
-	// it); a file glob must match the whole path.
-	re = new RegExp(folder ? `^${src}/` : `^${src}$`);
+	re = pattern.endsWith("/") ? new RegExp(`^${globSource(pattern.slice(0, -1))}/`) : globToRegex(pattern);
 	globCache.set(pattern, re);
 	return re;
 }
@@ -152,7 +142,7 @@ export function parseVaultExclude(raw: string | undefined): string[] {
  *  still on disk but on the skip list (derived from the live list, so
  *  removing a pattern restores the note exactly like a note coming back;
  *  a skip-listed note the scanner found gone, `absent`, is missing). */
-export type VaultEntryState = "ready" | "waiting" | "extracting" | "failed" | "missing" | "skipped";
+type VaultEntryState = "ready" | "waiting" | "extracting" | "failed" | "missing" | "skipped";
 
 export function vaultEntryState(source: NotesSource, extracting: boolean, exclude: readonly string[] = []): VaultEntryState {
 	const vault = source.vault!;

@@ -37,7 +37,7 @@ const { jobStore } = await import("../src/store/jobs.ts");
 const { subscribe } = await import("../src/core/events.ts");
 const { buildAnswer, normalizeOptions, resolveCorrect } = await import("../src/core/question-core.ts");
 const { ChatInputError, endsInFailedTurn, failedResponseAtEnd, inputAppends, parseChatInput, retryDrops } = await import("../src/core/input-events.ts");
-const { INTERRUPTED_TEXT, asAgentMessages, hasProbeDone, newHandoffMessage, newPlanBlockMessage, newUserMessage, reconstructRequestCause, toLlmMessages } = await import("../src/core/native-messages.ts");
+const { INTERRUPTED_TEXT, asAgentMessages, hasProbeDone, newHandoffMessage, newPlanBlockMessage, newUserMessage, toLlmMessages } = await import("../src/core/native-messages.ts");
 const { phaseAt3Lh } = await import("../src/core/phases.ts");
 const { newCompactionMarker } = await import("../src/core/compaction.ts");
 
@@ -360,7 +360,6 @@ describe("failed-response Retry (issue #110)", () => {
 		const chat = createConfiguredChat("Test: foreground manual retry");
 		const before = [newUserMessage("hello"), newHandoffMessage(chat.id), failed("automatic-failure")];
 		chatStore.saveMessages(chat.id, before);
-		assert.equal(reconstructRequestCause(before), "background");
 		let built = false;
 		const factory: AgentFactory = (opts) => {
 			built = true;

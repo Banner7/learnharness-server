@@ -3,7 +3,7 @@ import { initAuthEnv } from "./keys.ts";
 import { claudeCodeEnabled } from "./claude-code-config.ts";
 
 /** The Settings status seam: initialize provenance before any child env is copied. */
-export async function claudeCodeInstallationStatus() {
+async function claudeCodeInstallationStatus() {
 	initAuthEnv();
 	return inspectClaudeInstallation();
 }

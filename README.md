@@ -55,7 +55,7 @@ LearnHarness uses AI agents to plan and teach lessons from your current understa
 Requirements: Docker on an amd64 host and an authenticated HTTPS reverse proxy (for example Tailscale Serve) in front of the container.
 
 ```sh
-docker build -t learnharness:0.1.0 .
+docker build -t learnharness:0.1.1 .
 mkdir -p data secrets claude && chown 1000:1000 claude
 cp deploy/compose.example.yml compose.yml
 # create secrets/runtime.env with at least LH_WEB_ORIGIN and LH_WEB_ACCESS_TOKEN
@@ -80,7 +80,6 @@ Set these in the server environment (with Docker, in `secrets/runtime.env`).
 | `LH_VAULT_EXCLUDE` | No | Comma-separated skip patterns (`folder/`, `path/note.md`, `*` and `**` globs) that seed the Library skip list until one is saved. |
 | `LH_DATA_DIR` | No | Chats, graph, settings, prompts. `/data` in the image. |
 | `LH_AUTH_FILE` | No | Read-only flat JSON map of key variables, e.g. `{"OPENAI_API_KEY": "..."}`. `/secrets/auth.json` in the image. Environment values take precedence. |
-| `LH_IGNORE_ENV_KEYS` | No | `1` ignores provider keys in the environment; only `auth.json` is used. |
 | Provider keys | No | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, and the others listed in `src/core/auth-keys.ts`. |
 | Search and dictation keys | No | `TAVILY_API_KEY`, `BRAVE_API_KEY`, `EXA_API_KEY`, `FIRECRAWL_API_KEY`, `OLLAMA_API_KEY`, `DEEPGRAM_API_KEY`. |
 | `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR` | No | Authenticate the Claude Code CLI in the image. See [Claude Code](docs/claude-code.md). |

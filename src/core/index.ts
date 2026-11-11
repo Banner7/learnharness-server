@@ -48,7 +48,7 @@ export * from "./native-messages.ts";
 export { copyImmutableData } from "./immutable-data.ts";
 export * from "./compaction.ts";
 export * from "./input-events.ts";
-export { parseFilePaths, quoteFilePath, filePathLabel, isDirectoryReference, directoryReferencePath } from "./file-paths.ts";
+export { parseFilePaths, quoteFilePath, filePathLabel, isDirectoryReference } from "./file-paths.ts";
 export type { FilePathPart } from "./file-paths.ts";
 export * from "./citations.ts";
 export { parseComposerTokens } from "./composer-tokens.ts";
@@ -85,8 +85,8 @@ export * from "./search.ts"; // search port (search wave, 2026-09-20)
 export * from "./session-find.ts";
 export * from "./session-navigation.ts";
 // auth-keys.ts (auth-keys wave, 2026-09-19): the curated key catalog +
-// shape rules + masking — pure, browser-safe (the read-only Providers page
-// and GET /api/keys status built on it).
+// masking — pure, browser-safe (the read-only Providers page and
+// GET /api/keys status built on it).
 export * from "./auth-keys.ts";
 // keyboard.ts: the shortcut registry + binding normalization (pure, browser-safe).
 export * from "./keyboard.ts";

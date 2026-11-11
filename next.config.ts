@@ -18,13 +18,13 @@ const nextConfig: NextConfig = {
 	output: "standalone",
 	// SAFETY (empirically verified 2026-09-17): without this, output file
 	// tracing sweeps the repo's real data/ — chat records, graph ledgers —
-	// INTO the standalone bundle. A shipped desktop app would carry the
+	// INTO the standalone bundle. The Docker image would carry the
 	// developer's session data inside it.
 	//
 	// SECRETS (2026-10-08, caught in the payload audit): the same sweep
-	// ships the repo-root auth.json — the DEV BYOK key store — byte-identical
-	// into the DMG (the packaged app never reads it: the shell passes
-	// LH_AUTH_FILE → userData). Excluded here; build-server.mjs also REFUSES
+	// ships the repo-root auth.json — the dev key store — byte-identical
+	// into the Docker image (the image never reads it: LH_AUTH_FILE points at
+	// /secrets/auth.json). Excluded here; build-server.mjs also REFUSES
 	// to package any standalone still containing it. .env* belt-and-braces
 	// the same class. Next also copies loaded bare .env after tracing;
 	// the build-server refusal remains required even with these excludes.
@@ -91,11 +91,6 @@ const nextConfig: NextConfig = {
 			// per-platform-binary story as the canvas above (one per build).
 			"node_modules/@resvg/resvg-js-*/**/*",
 			"node_modules/@earendil-works/pi-ai/dist/providers/data/**/*",
-			// Public native OAuth factories load these flows through variable imports.
-			// The offline runtime gate
-			// evaluates their real toAuth paths without login or provider requests.
-			"node_modules/@earendil-works/pi-ai/dist/auth/oauth/{load,github-copilot,xai,device-code}.js",
-			"node_modules/@earendil-works/pi-ai/dist/utils/sleep.js",
 			"node_modules/@earendil-works/pi-agent-core/dist/**/*.json",
 			// Next 16.3.2 native Turbopack applies unanchored excludes while
 			// traversing modules; **/data/**/* still prunes gcp-metadata and

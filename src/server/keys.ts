@@ -19,20 +19,8 @@
  * honestly reports shadowedByEnv when the file holds a copy that is not the
  * live one.
  *
- * Unknown vars in the file are preserved verbatim and surfaced as
- * generic status rows (only curated keys have shapes and docs;
- * core/auth-keys.ts).
- *
- * THE FRESH-USER SWITCH (owner, interlude 2026-09-22): LH_IGNORE_ENV_KEYS=1
- * makes every env key invisible APP-WIDE — the exact new-user simulation
- * (a fresh empty data dir + the switch = zero keys, zero federated
- * providers, setup stage 1). Under the switch real env vars are DELETED
- * from the process (not merely ignored by this seam): pi-ai resolves
- * provider keys from process.env NATIVELY at every request
- * (auth/context.js's defaultProviderAuthContext reads live env), so
- * deletion is the one mechanism that hides keys from every consumer —
- * model engines included. Only the file store (auth.json) counts. Unset
- * switch = today's behavior, byte-for-byte.
+ * Unknown vars in the file are surfaced as generic status rows (only
+ * curated keys carry labels and docs links; core/auth-keys.ts).
  */
 
 import {
@@ -41,6 +29,7 @@ import {
 	AUTH_PROVIDER_ENV_VARS,
 	type AuthKeyInfo,
 	type AuthKeyStatus,
+	FULL_MASK,
 	maskKey,
 } from "../core/auth-keys.ts";
 import { authStore } from "../store/auth.ts";
@@ -57,19 +46,12 @@ import { authEnvRecord as boot } from "../core/auth-env.ts";
  *  names this module set are excluded via fillGap). */
 let snapshotted = false;
 
-/** The settings page's provider dropdown: every pi-ai provider that takes
- *  a plain key ({id, envVar, label} — no-drift-pinned, see the table's doc
- *  in core/auth-keys.ts and tests/auth-provider-keys.test.ts). Sorted by
- *  id for a stable payload. */
+/** Every pi-ai provider that takes a plain key ({id, envVar, label} —
+ *  no-drift-pinned, see the table's doc in core/auth-keys.ts and
+ *  tests/auth-provider-keys.test.ts): the Providers section's labels.
+ *  Sorted by id for a stable payload. */
 export function providerKeyList() {
 	return [...AUTH_PROVIDER_KEYS].sort((a, b) => a.id.localeCompare(b.id));
-}
-
-/** The fresh-user switch (owner, interlude 2026-09-22): env keys are
- *  invisible app-wide — deleted from the process at boot, file keys only.
- *  Read live per call (the launcher exports it before boot). */
-export function envKeysIgnored(): boolean {
-	return process.env.LH_IGNORE_ENV_KEYS === "1";
 }
 
 /**
@@ -96,15 +78,7 @@ export function initAuthEnv(): void {
 		!name.startsWith("LH_") && !name.startsWith("NODE_") &&
 		(known.has(name) || /_(?:API_KEY|TOKEN|SECRET)$/.test(name))));
 	const managed = new Set<string>([...Object.keys(fileVars), ...known]);
-	if (envKeysIgnored()) {
-		// THE FRESH-USER SWITCH: delete every managed env var (re-run on
-		// every call — a reintroduced var never resurrects). realEnv stays
-		// EMPTY (nothing counts as env); the fill-gap below then reflects
-		// auth.json keys so engines still see mid-session additions.
-		for (const name of managed) {
-			delete process.env[name];
-		}
-	} else if (!snapshotted) {
+	if (!snapshotted) {
 		// First sync in this process: what's already in the env is REAL env.
 		snapshotted = true;
 		for (const name of managed) {
@@ -130,16 +104,16 @@ export function initAuthEnv(): void {
 }
 
 /**
- * The pure status projection — exported for tests. `env` is the live
- * process env view; `realEnv` the boot snapshot (env precedence).
+ * The pure status projection. `env` is the live process env view;
+ * `realEnv` the boot snapshot (env precedence).
  */
-export function resolveKeyStatuses(
+function resolveKeyStatuses(
 	fileVars: Record<string, string>,
 	env: Record<string, string | undefined>,
 	realEnv: ReadonlySet<string>,
 	/** The model-provider env vars (provider-keys interlude): PRESENT ones
-	 *  join the status rows — absent ones never spam (the dropdown is the
-	 *  discovery surface). Curated keys always get rows, present or not. */
+	 *  join the status rows — absent ones never spam (the `providers` list
+	 *  carries their labels). Curated keys always get rows, present or not. */
 	providerEnvVars: ReadonlySet<string> = new Set(),
 	/** Names whose values may be arbitrarily short (LH_CUSTOM_PROVIDERS
 	 *  secrets): listed, but no key characters returned. */
@@ -164,7 +138,7 @@ export function resolveKeyStatuses(
 			present: live !== undefined,
 			// Custom secrets may be one character: even a masked suffix can expose
 			// the entire credential. Preserve inventory, return no key characters.
-			masked: live !== undefined ? opaqueEnvVars.has(id) ? "••••" : `${maskKey(live)} (${live.trim().length} chars)` : null,
+			masked: live !== undefined ? opaqueEnvVars.has(id) ? FULL_MASK : `${maskKey(live)} (${live.trim().length} chars)` : null,
 			source: isRealEnv ? "env" : live !== undefined ? "file" : "none",
 			shadowedByEnv: isRealEnv && fileValue !== undefined && envValue !== fileValue,
 		});
@@ -185,10 +159,6 @@ export function keyStatuses(): AuthKeyStatus[] {
  *  otherwise read env before any fill-gap ran). */
 export function keyValue(id: string): string | undefined {
 	initAuthEnv();
-	// The fresh-user switch: ONLY the file store counts (belt-and-
-	// suspenders — the boot deletion already emptied the env; this guards
-	// any env key reintroduced after boot).
-	if (envKeysIgnored()) return authStore.authVars()[id];
 	return process.env[id] ?? authStore.authVars()[id];
 }
 

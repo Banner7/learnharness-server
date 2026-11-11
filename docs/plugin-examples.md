@@ -289,12 +289,8 @@ behavior.
 
 The source export preserves tests for study; it does **not** promise all tests are
 standalone. Read the project's README and harness for environment variables and
-platform assumptions. The Flashcards and Coding questions native harnesses install
-Community-ID fixtures, which are not admitted unchanged by a Core-packaged host with
-reserved IDs; do not use them as installation instructions or portable Core smokes.
-Host-only integration tests and private host modules are not exported with these
-projects. Native packaged-host checks require an independently supplied matching host,
-not just the public declaration SDK or a built plugin.
+platform assumptions. Host-only integration tests and private host modules are not
+exported with these projects.
 
 Use disposable profiles, synthetic records and loopback fixtures. Plugin checks are
 not real-provider, hardware, cross-platform or human

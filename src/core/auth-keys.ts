@@ -1,21 +1,16 @@
 /**
- * The curated auth-key catalog + shape rules (auth-keys wave, 2026-09-19).
- * PURE, browser-safe — no fs, no env. The catalog drives the auth page's
- * key list (label, description, where-to-get docs link) and the write-side
- * shape validation (owner decision: SHAPE-ONLY validation, no live pings —
- * a revoked key looks fine until a real call fails; that trade was chosen
- * over phoning providers).
+ * The curated auth-key catalog + masking (auth-keys wave, 2026-09-19).
+ * PURE, browser-safe — no fs, no env. The catalog drives the read-only
+ * Providers section's status table (label, description, where-to-get docs
+ * link); keys are configured on the server, never in the browser.
  *
  * The store itself is the long-standing flat {VAR: value} auth.json map
  * (see config.AUTH_FILE): keys are identified BY their environment-variable
  * name — the same name consumers read today (OPENROUTER_API_KEY, …), so the
  * catalog id IS the file key and the env var, one name everywhere.
  *
- * Unknown vars found in the file (outside the catalog) are PRESERVED
- * verbatim and surfaced as generic entries — forward-compat for future
- * entries (e.g. a plans-login token) without a schema change — but they
- * are not hand-writable through the curated API (only the catalog's keys
- * have shapes worth checking and docs worth showing).
+ * Unknown vars found in the file (outside the catalog) are surfaced as
+ * generic status rows (only the catalog's keys have docs worth showing).
  */
 
 /** One curated key entry. `id` is the env-var/file key name. */
@@ -25,7 +20,7 @@ export interface AuthKeyInfo {
 	label: string;
 	/** One-sentence what-is-this-for. */
 	description: string;
-	/** Where the user gets a key (opens in the real browser via the shell). */
+	/** Where the user gets a key. */
 	docsUrl: string;
 }
 
@@ -68,15 +63,9 @@ export const AUTH_KEYS: readonly AuthKeyInfo[] = [
 	},
 ] as const;
 
-const AUTH_KEY_IDS: ReadonlySet<string> = new Set(AUTH_KEYS.map((k) => k.id));
-
-export function isKnownAuthKey(id: string): boolean {
-	return AUTH_KEY_IDS.has(id);
-}
-
-/** One model-provider key row for the settings page's dropdown: which
- *  pi-ai provider, the env var its key rides in, and the human label
- *  (pi's own Provider.name). */
+/** One model-provider key row for the Providers section: which pi-ai
+ *  provider, the env var its key rides in, and the human label (pi's own
+ *  Provider.name). */
 export interface AuthProviderInfo {
 	id: string;
 	envVar: string;
@@ -93,9 +82,9 @@ export interface AuthProviderInfo {
  * table — a pi-ai upgrade that adds/renames a provider key fails the gate
  * loudly instead of drifting silently.
  *
- * EXCLUDED by owner spec — providers whose auth is not a plain key this
- * wave: github-copilot (OAuth), amazon-bedrock (AWS creds), google-vertex
- * (ADC), azure (needs a base URL), the cloudflare
+ * EXCLUDED — providers whose auth is not a plain key: github-copilot
+ * (OAuth, not supported by this server), amazon-bedrock (AWS creds),
+ * google-vertex (ADC), azure (needs a base URL), the cloudflare
  * account-scoped pair. Anthropic keeps ANTHROPIC_API_KEY only — its
  * AUTH_TOKEN/OAUTH_TOKEN alternates stay env-only. openai-codex exposes
  * no env-key (naturally absent). Providers sharing one env var (moonshotai
@@ -144,10 +133,8 @@ export const AUTH_PROVIDER_KEYS: readonly AuthProviderInfo[] = [
  *  PRESENT provider vars surface as status rows). */
 export const AUTH_PROVIDER_ENV_VARS: ReadonlySet<string> = new Set(AUTH_PROVIDER_KEYS.map((p) => p.envVar));
 
-/** Is this env-var name the key of SOME pi-ai model provider? */
-export function isProviderEnvVar(envVar: string): boolean {
-	return AUTH_PROVIDER_ENV_VARS.has(envVar);
-}
+/** The full redaction: no key characters at all. */
+export const FULL_MASK = "••••";
 
 /** A masked key never leaves the server as plaintext (owner decision:
  *  last 4 chars + length — enough to identify which key is stored after
@@ -155,7 +142,7 @@ export function isProviderEnvVar(envVar: string): boolean {
  *  12 characters show no characters at all: 4 of them is too much of it. */
 export function maskKey(value: string): string {
 	const v = value.trim();
-	if (v.length < 12) return "••••";
+	if (v.length < 12) return FULL_MASK;
 	return `…${v.slice(-4)}`;
 }
 

@@ -8,7 +8,6 @@ import { MenuShell } from "../components/menu-shell.tsx";
 import { usePopoverDismiss } from "../components/popover-dismiss.ts";
 import { createPortal } from "react-dom";
 import { installModalDom } from "./modal-dom.ts";
-import { KeysSection } from "../components/settings/keys-section.tsx";
 import { usePluginMenuDismiss } from "../components/plugin-model-picker.tsx";
 
 async function withDom(run: (controller: () => InteractionLayersController, render: (node: React.ReactNode) => Promise<void>) => Promise<void>) {

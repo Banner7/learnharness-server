@@ -47,7 +47,7 @@ const TRANSPORTS: Transport[] = [
 
 // Replacing rather than extending env also isolates secondary tokens (including
 // ANTHROPIC_AUTH_TOKEN/OAUTH_TOKEN and CLAUDE_CODE_OAUTH_TOKEN), SDK base-URL
-// overrides, cloud credentials, profiles, and LH_IGNORE_ENV_KEYS. No .env loads.
+// overrides, cloud credentials, and profiles. No .env loads.
 async function isolated<T>(env: Record<string, string>, run: () => Promise<T>): Promise<T> {
 	const previous = process.env;
 	const fetch = globalThis.fetch;

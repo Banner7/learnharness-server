@@ -19,14 +19,14 @@ body:
     id: version
     attributes:
       label: LearnHarness version or build
-      description: Include the app version, installer filename or source commit. If you cannot find it, write "unknown".
+      description: Include the image tag, app version or source commit. If you cannot find it, write "unknown".
     validations:
       required: true
   - type: input
     id: operating_system
     attributes:
-      label: Operating system
-      description: For example, Windows, macOS or your Linux distribution. Include the OS version if known.
+      label: Server OS and browser
+      description: The server's operating system (and Docker version, if used) and the browser you use. Include versions if known.
     validations:
       required: true
   - type: textarea

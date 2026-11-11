@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { AUTH_KEYS, isKnownAuthKey, maskKey } from "../src/core/auth-keys.ts";
+import { AUTH_KEYS, maskKey } from "../src/core/auth-keys.ts";
 
 describe("the catalog", () => {
 	it("lists the curated app-service keys (provider keys live in the provider table)", () => {
@@ -22,25 +22,6 @@ describe("the catalog", () => {
 			assert.ok(k.description.length > 0, `${k.id} has a description`);
 			assert.ok(k.docsUrl.startsWith("https://"), `${k.id} has a docs link`);
 		}
-		// OPENROUTER_API_KEY graduated to the provider table (owner decision,
-		// provider-keys interlude) — not curated anymore. The Google CSE
-		// pair retired with its engine (search wave, 2026-09-20).
-		assert.ok(!isKnownAuthKey("OPENROUTER_API_KEY"));
-		assert.ok(!isKnownAuthKey("GOOGLE_SEARCH_API_KEY"), "the CSE pair is retired");
-		assert.ok(!isKnownAuthKey("GOOGLE_CSE_ID"));
-	});
-
-	it("isKnownAuthKey: catalog yes, everything else no", () => {
-		assert.ok(isKnownAuthKey("DEEPGRAM_API_KEY"));
-		assert.ok(isKnownAuthKey("TAVILY_API_KEY"));
-		assert.ok(isKnownAuthKey("BRAVE_API_KEY"));
-		assert.ok(isKnownAuthKey("EXA_API_KEY"));
-		assert.ok(isKnownAuthKey("FIRECRAWL_API_KEY"));
-		assert.ok(isKnownAuthKey("OLLAMA_API_KEY"));
-		assert.ok(!isKnownAuthKey("OPENROUTER_API_KEY"));
-		assert.ok(!isKnownAuthKey("OPENAI_API_KEY"), "provider vars are a separate surface");
-		assert.ok(!isKnownAuthKey("FUTURE_PLANS_TOKEN"));
-		assert.ok(!isKnownAuthKey(""));
 	});
 });
 

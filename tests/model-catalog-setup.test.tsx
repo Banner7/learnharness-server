@@ -8,7 +8,7 @@ import { parseHTML } from "linkedom";
 import { SetupDialog } from "../components/setup-dialog.tsx";
 import { InteractionLayersProvider } from "../components/interaction-layers.tsx";
 import { AgentSection } from "../components/settings/agent-section.tsx";
-import { providerKeyLabel, classifyKeys } from "../components/settings/keys-section.tsx";
+import { providerKeyLabel } from "../components/settings/keys-section.tsx";
 import { useModelCatalog } from "../components/model-catalog.ts";
 import { notifySettingsSaved } from "../components/settings-signal.ts";
 import { useModelSetup, savedSlotsConfigured, selectedModelUnavailable, openModelPicker } from "../components/setup-cta.tsx";
@@ -118,7 +118,6 @@ test("zero providers always means exclusive connection stage; reconnect with all
 	await answer(2, catalog(false));
 	assert.ok(element("setup-stage-keys"));
 	assert.equal(document.querySelector('[data-testid="setup-stage-pickers"]'), null);
-	assert.equal(document.querySelector('[data-testid="setup-add-provider"]'), null);
 	assert.equal(document.querySelector('[data-testid="setup-save"]'), null);
 	await act(async () => notifySettingsSaved("models"));
 	const other = catalog(false); other.providers = [{ id: "other", envVar: "OTHER_KEY", keyPresent: true }];

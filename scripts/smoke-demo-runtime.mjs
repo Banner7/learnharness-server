@@ -17,14 +17,14 @@ export function probeEnv(env, home) {
 	const clean = Object.fromEntries(Object.entries(env).filter(([key]) =>
 		!/KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL/i.test(key) &&
 		!/^(AWS_|GOOGLE_|GCLOUD_|CLOUDSDK_|AZURE_|ANTHROPIC_|OPENAI_|OPENROUTER_|GEMINI_)/.test(key) &&
-		!["NODE_OPTIONS", "NODE_PATH", "LH_DEV_URL"].includes(key)));
+		!["NODE_OPTIONS", "NODE_PATH"].includes(key)));
 	return {
 		...clean,
 		HOME: home, USERPROFILE: home,
 		APPDATA: path.join(home, "config"), LOCALAPPDATA: path.join(home, "local"),
 		XDG_CONFIG_HOME: path.join(home, "config"), XDG_CACHE_HOME: path.join(home, "cache"),
 		LH_DATA_DIR: path.join(home, "data"), LH_AUTH_FILE: path.join(home, "auth.json"),
-		LH_IGNORE_ENV_KEYS: "1", NODE_ENV: "production",
+		NODE_ENV: "production",
 	};
 }
 

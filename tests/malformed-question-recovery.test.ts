@@ -22,7 +22,7 @@ const { handleChatRequest } = await import("../src/server/chat-handler.ts");
 const { runningTurn } = await import("../src/server/turn-runs.ts");
 const { chatStore } = await import("../src/store/chats.ts");
 const { SessionModel } = await import("../components/session-core.ts");
-const { pendingQuestionOf, danglingQuestionOf, hasUnresolvedQuestion, malformedQuestionsOf, newUserMessage, newAnswerResult, needsContinuation, nativeInputCause } = await import("../src/core/native-messages.ts");
+const { pendingQuestionOf, danglingQuestionOf, hasUnresolvedQuestion, malformedQuestionsOf, newUserMessage, newAnswerResult, needsContinuation } = await import("../src/core/native-messages.ts");
 const { findPendingToolCall } = await import("../src/core/pending.ts");
 const { projectView } = await import("../src/core/view.ts");
 const { parseQuestionInput } = await import("../src/core/tool-parts.ts");
@@ -147,7 +147,6 @@ test("manual recovery preserves history and successful sibling tools, sends erro
 	const result = saved[before.length]!;
 	assert.equal(result.role, "toolResult");
 	assert.ok(result.role === "toolResult" && result.isError && (result.details as { questionRecovery?: boolean })?.questionRecovery);
-	assert.equal(nativeInputCause(result, before), "learner");
 	assert.match(JSON.stringify(histories[0]), /learner requested a replacement, not an answer/);
 	assert.match(JSON.stringify(histories[0]), /Already saved/);
 	assert.equal(histories.length, 1, "no replay of prior tools");

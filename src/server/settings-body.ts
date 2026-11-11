@@ -426,7 +426,6 @@ export function parseDictationSettingsBody(body: unknown): SettingsBodyResult<Di
 /** The section→parser map for PUT /api/settings/[section]. Claude Code's
  *  opt-in is server-managed (set in the settings file), never a section. */
 export const SETTINGS_SECTIONS = {
-	chat: parseSettingsBody,
 	agent: parseAgentSettingsBody,
 	appearance: parseAppearanceSettingsBody,
 	graph: parseGraphSettingsBody,
@@ -435,4 +434,3 @@ export const SETTINGS_SECTIONS = {
 	dictation: parseDictationSettingsBody,
 } as const;
 
-export type SettingsSectionName = keyof typeof SETTINGS_SECTIONS;

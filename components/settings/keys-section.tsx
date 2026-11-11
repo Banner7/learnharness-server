@@ -11,23 +11,15 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { AUTH_KEYS, type AuthKeyStatus } from "@/src/core";
+import { AUTH_KEYS, type AuthKeyStatus, type AuthProviderInfo } from "@/src/core";
 import { SettingsGroup } from "./controls.tsx";
 import { ClaudeCodeInstallationStatus } from "./claude-code-status.tsx";
 import { useModelCatalog } from "@/components/model-catalog";
 import { DictationLanguageSetting } from "@/components/dictation-language";
 
-/** One pi-ai provider with plain API-key auth (the Platform seam —
- *  derived from pi-ai's own env-key table; no drift possible). */
-export interface ProviderKeyInfo {
-	id: string;
-	envVar: string;
-	label: string;
-}
-
 interface KeysResponse {
 	keys: AuthKeyStatus[];
-	providers?: ProviderKeyInfo[];
+	providers?: AuthProviderInfo[];
 }
 
 /** The curated tools group, pinned by id (the catalog owns the copy;
@@ -35,10 +27,10 @@ interface KeysResponse {
 const TOOL_IDS = AUTH_KEYS.map((k) => k.id) as readonly string[];
 
 /** The classification driving the table groups. Pure — exported for
- *  tests and the setup gate. */
+ *  tests. */
 export function classifyKeys(
 	statuses: readonly AuthKeyStatus[],
-	providers: readonly ProviderKeyInfo[] | undefined,
+	providers: readonly AuthProviderInfo[] | undefined,
 ): {
 	/** Provider keys present on the server (env or file), in GET order. */
 	providerRows: AuthKeyStatus[];
@@ -76,7 +68,7 @@ export function classifyKeys(
 
 /** A key row names its credential, not whichever provider sorts first.
  * Pi exposes Zen and Go separately but both read OPENCODE_API_KEY. */
-export function providerKeyLabel(id: string, providers: readonly ProviderKeyInfo[] | undefined): string | undefined {
+export function providerKeyLabel(id: string, providers: readonly AuthProviderInfo[] | undefined): string | undefined {
 	const matches = providers?.filter((p) => p.envVar === id);
 	if (matches?.some((p) => p.id === "opencode") && matches.some((p) => p.id === "opencode-go")) return "OpenCode (Zen / Go)";
 	return matches?.[0]?.label;
@@ -145,7 +137,7 @@ export function KeysSection({
 	initialRow?: string;
 }) {
 	const [statuses, setStatuses] = useState<AuthKeyStatus[] | null>(null);
-	const [providers, setProviders] = useState<ProviderKeyInfo[] | undefined>(undefined);
+	const [providers, setProviders] = useState<AuthProviderInfo[] | undefined>(undefined);
 	const { catalog } = useModelCatalog();
 	const serverProviders = catalog?.providers.filter((provider) => provider.serverManaged) ?? [];
 

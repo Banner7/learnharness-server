@@ -232,16 +232,6 @@ export function rmsToMeter(rms: number): number {
  * window, one pending question, one target at a time.
  */
 let questionTarget: ((text: string) => void | Promise<void>) | null = null;
-let composerTarget: ((text: string) => void) | null = null;
-
-/** Append to the very same default destination as dictation, including
- * claims whose dock is currently collapsed. */
-export function appendToPrimaryInput(text: string): boolean {
-	const target = questionTarget ?? composerTarget;
-	if (!target) return false;
-	target(text);
-	return true;
-}
 
 /* The CORE finisher registry: the pending question's dock needs finish()
  * without a prop bridge. Explicit plugin controllers never register here;
@@ -360,14 +350,6 @@ export function useDictation({ append, destination = "primary", disabled = false
 	/** Fresh fallback for the next start; a live run retains its own target. */
 	const appendRef = useRef(append);
 	appendRef.current = append;
-	useEffect(() => {
-		if (!primary) return;
-		const target = (text: string) => appendRef.current(text);
-		composerTarget = target;
-		return () => {
-			if (composerTarget === target) composerTarget = null;
-		};
-	}, [primary]);
 
 	// Live machinery (non-render values). The MediaStream tracks stop and
 	// the per-run nodes disconnect on teardown; the socket is recreated per

@@ -86,13 +86,6 @@ export function isDirectoryReference(path: string): boolean {
 	return path.endsWith("/") || (isWindowsPath(path) && path.endsWith("\\"));
 }
 
-/** Only call for a positively known directory (native picker/drop metadata).
- * The durable marker survives ordinary text storage/copy/reload unchanged. */
-export function directoryReferencePath(path: string): string {
-	quoteFilePath(path);
-	return isDirectoryReference(path) ? path : path + (isWindowsPath(path) ? "\\" : "/");
-}
-
 /** Basename for display only; the original full path remains untouched. */
 export function filePathLabel(path: string): string {
 	const windows = isWindowsPath(path);

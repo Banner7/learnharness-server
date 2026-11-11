@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { PathInput, INSERT_CITATION_EVENT, UPDATE_CITATION_EVENT } from "../components/path-input.tsx";
 import {
 	PATH_CARET_ATTRIBUTE, PATH_SOURCE_ATTRIBUTE, PathInputHistory, adjacentPathRange, atomicPathRange,
-	insertCitation, insertFilePaths, normalizePathEdit, normalizePathInputValue, pathInputOffset, pathInputPoint, pathInputStaticRange, readPathInput,
+	insertCitation, normalizePathEdit, normalizePathInputValue, pathInputOffset, pathInputPoint, pathInputStaticRange, readPathInput,
 	readPathSelection, renderPathInput, replacePathSelection, restorePathSelection,
 } from "../components/path-input-dom.ts";
 import { quoteFilePath } from "../src/core/file-paths.ts";
@@ -95,14 +95,6 @@ test("range replacement/deletion is atomic and leaves neighboring whitespace unt
 	assert.deepEqual(adjacentPathRange(value, { anchor: 2, focus: 2 }, "forward"), { anchor: 2, focus: 2 + token.length });
 	assert.deepEqual(adjacentPathRange(value, { anchor: 2 + token.length, focus: 2 + token.length }, "backward"), { anchor: 2, focus: 2 + token.length });
 	assert.equal(adjacentPathRange(value, { anchor: 1, focus: 1 }, "forward"), null);
-});
-
-test("file insertion uses full quoted sources at saved ranges with separating spaces", () => {
-	const next = insertFilePaths("readthis", { anchor: 4, focus: 4 }, ["/a b.pdf", "C:\\a\\x.txt"]);
-	assert.equal(next.value, "read `/a b.pdf` `C:\\a\\x.txt` this");
-	assert.equal(next.selection.anchor, next.value.length - 4);
-	assert.equal(insertFilePaths("a\n", { anchor: 2, focus: 2 }, ["~/x"]).value, "a\n`~/x`");
-	assert.throws(() => insertFilePaths("", { anchor: 0, focus: 0 }, ["relative.txt"]), TypeError);
 });
 
 test("owned history restores values and directional selections; a new edit discards redo", () => {

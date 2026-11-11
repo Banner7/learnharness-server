@@ -21,7 +21,8 @@ import {
 	sectionedSegments,
 } from "../components/settings/agent-section.tsx";
 import { nextOverrides } from "../components/settings/keyboard-section.tsx";
-import { classifyKeys, keyStatusLine, type ProviderKeyInfo } from "../components/settings/keys-section.tsx";
+import { classifyKeys, keyStatusLine } from "../components/settings/keys-section.tsx";
+import type { AuthProviderInfo } from "../src/core/auth-keys.ts";
 import type { AgentSettings, AuthKeyStatus, ModelsSettings } from "../src/core";
 import { resolveSettings, slotsConfigured } from "../src/core";
 import { setupStage } from "../components/setup-dialog.tsx";
@@ -273,7 +274,7 @@ describe("classifyKeys — the Keys section's two-group projection", () => {
 		source: present ? "file" : "none",
 		shadowedByEnv: false,
 	});
-	const providers: ProviderKeyInfo[] = [
+	const providers: AuthProviderInfo[] = [
 		{ id: "groq", envVar: "GROQ_API_KEY", label: "Groq" },
 		{ id: "deepseek", envVar: "DEEPSEEK_API_KEY", label: "DeepSeek" },
 		{ id: "openrouter", envVar: "OPENROUTER_API_KEY", label: "OpenRouter" },

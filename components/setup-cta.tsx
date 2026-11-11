@@ -38,16 +38,6 @@ export function openModelPicker(): void {
 	window.dispatchEvent(new CustomEvent("lh:kbd-open-model-picker"));
 }
 
-/** The zero-keys truth for the calling page: TRUE only after a
- *  successful read says no provider key exists (pending and failed
- *  reads render nothing — the pill must never flash on a gap, and a
- *  failed read claiming "zero keys" would be a lie the CTA flow then
- *  leans on). */
-export function useZeroKeys(): boolean {
-	const { catalog } = useModelCatalog();
-	return catalog ? !catalog.providers.some((provider) => provider.keyPresent) : false;
-}
-
 /** The pill itself — the models CTA's chrome and placement, the keys
  *  chain's copy. testid "setup-cta-keys" (the models CTA keeps
  *  "setup-cta"; probes can tell them apart). */
@@ -63,25 +53,4 @@ export function ZeroKeysPill({ onOpen, inline = false }: { onOpen: () => void; i
 		</button>
 	);
 	return inline ? button : <div className="pointer-events-auto mb-2 flex justify-center">{button}</div>;
-}
-/** Pure: the strong slot is pinned to a provider whose key is GONE (owner
- *  interlude, 2026-09-25 — the original deleted-key scenario). The catalog
- *  already knows both halves: slots.strong is the resolved pin, providers[]
- *  lists only PRESENT-key providers (keyless ones are absent, the same
- *  discipline as the search engines). False when the strong slot is unset
- *  (the models guard owns that case — this check only runs when slots ARE
- *  configured) or the catalog hasn't loaded (the server gate remains the
- *  belt). Exported for pins. */
-export function strongKeyless(catalog: ModelCatalogResponse | undefined): boolean {
-	const strong = catalog?.slots.strong;
-	if (!strong) return false;
-	return !catalog.providers.some((p) => p.id === strong.model.provider && p.keyPresent);
-}
-
-/** The strong-slot keyless truth for the PRE-SEND guard (home / /chat/new):
- *  the catalog seam, re-read when the strong slot is re-pinned ("models").
- *  Live-updates with the page, never mid-send. */
-export function useStrongKeyless(): boolean {
-	const { catalog } = useModelCatalog();
-	return strongKeyless(catalog);
 }

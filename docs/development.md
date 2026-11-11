@@ -14,7 +14,7 @@ npm run dev            # normally http://localhost:3000
 
 `plugins:setup` prepares each source package under `plugins/`: it generates its ignored `.sdk/` when needed, then runs `npm ci`. Run it after a fresh checkout and again after public API or plugin lockfile changes. Root typecheck/build includes plugin sources, so CI uses the same preparation. It does not build plugin bundles, install/enable plugins in your learning-data directory, or populate `core-plugins/`.
 
-`npm run plugins:build-core` builds the four IDs in `core-plugins.json` and stages complete app-owned packages in generated `core-plugins/<id>/`. `dev` and `build` run it automatically; `dev:fresh` uses those entry points. Core code loads directly from this directory; restart the server after source edits/rebuilding (there is no plugin hot reload). Do not use raw `next dev`/`next build` without first staging core packages. Fresh checkouts need `plugins:setup` before these commands.
+`npm run plugins:build-core` builds the four IDs in `core-plugins.json` and stages complete app-owned packages in generated `core-plugins/<id>/`. `dev` and `build` run it automatically. Core code loads directly from this directory; restart the server after source edits/rebuilding (there is no plugin hot reload). Do not use raw `next dev`/`next build` without first staging core packages. Fresh checkouts need `plugins:setup` before these commands.
 
 For a community/developer plugin, build in its source directory and follow the [installation guide](plugin-authoring.md#package-and-installation). Generated `core-plugins/`, plugin `dist/`, `.sdk/` and `node_modules/` stay out of Git. UI Showcase remains a developer example, not a shipped core package. Never install a community package using a reserved core ID.
 
@@ -51,7 +51,6 @@ Nonsecret settings are deltas in `<data root>/settings.json`; absent values reso
 | `LH_WEB_ACCESS_TOKEN` | Required. 64 hex characters; Basic auth password for user `learnharness`. |
 | `LH_TAILSCALE_USERS` | Optional comma-separated Tailscale logins admitted without a password. |
 | `LH_CUSTOM_PROVIDERS` | Optional JSON array of OpenAI-compatible providers; see [custom providers](custom-providers.md). |
-| `LH_IGNORE_ENV_KEYS` | `1` ignores provider keys in the environment. |
 | `LH_VAULT_DIR` | Optional vault library: a folder of Markdown notes the server follows read-only (30 s poll; Settings → Library for Sync now, auto-extract, skip list, missing-note review). Unset = off. |
 | `LH_VAULT_EXCLUDE` | Optional comma-separated skip patterns (`folder/`, `exact/path.md`, globs with `*`/`**`) seeding the Library skip list until one is saved. Dot entries are always skipped. |
 | Provider API-key variables | Optional, selected-provider dependent; UI names are in `src/core/auth-keys.ts`. |

@@ -6,7 +6,8 @@ import * as path from "node:path";
 import { describe, it } from "node:test";
 
 import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { expandBraces, globToRegex, isSensitivePath, matchGlob, resolveSourcePath, walkFiles } from "../src/agent/tools/fs-shared.ts";
+import { expandBraces, isSensitivePath, matchGlob, resolveSourcePath, walkFiles } from "../src/agent/tools/fs-shared.ts";
+import { globToRegex } from "../src/core/glob.ts";
 import { findTool } from "../src/agent/tools/find.ts";
 import { grepTool } from "../src/agent/tools/grep.ts";
 import { lsTool } from "../src/agent/tools/ls.ts";

@@ -225,7 +225,7 @@ is provided by this plugin.
 
 This remains trusted-local plugin code, not a sandbox for arbitrary third-party
 plugins. Static output sanitization and an isolated TeX Worker do not authorize
-arbitrary JS execution or weaken Electron/host isolation.
+arbitrary JS execution or weaken host isolation.
 
 ## Tests and boundaries
 

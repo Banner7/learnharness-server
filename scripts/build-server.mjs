@@ -51,9 +51,9 @@ if (exists(leakedData)) {
 
 // 2b) Safety: the repo's dev SECRETS must never ride along either — the
 // same trace sweep that catches data/ shipped the repo-root auth.json
-// (the DEV BYOK key store, 0600) byte-identical into the DMG (caught in
+// (the dev key store, 0600) byte-identical into the payload (caught in
 // the 2026-10-08 payload audit; excluded in next.config.ts — this guard
-// makes a regression loud instead of silent).
+// makes a regression loud instead of silent) and so into the Docker image.
 // Next copies loaded dotenv files (.env, .env.production, …) into standalone:
 // refuse every .env* entry, not only a fixed list.
 const rootSecrets = fs.readdirSync(STANDALONE).filter((name) => /^(chatgpt|github-copilot|xai)-credentials\.json/.test(name) || /^\.env(\..*)?$/.test(name));

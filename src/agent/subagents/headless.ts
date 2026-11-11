@@ -192,9 +192,8 @@ async function runDemo(html: string, opts: RunDemoOptions = {}): Promise<DemoRun
 	return withBrowserPage(page => runDemoOnPage(page, html, opts));
 }
 
-/** Production execution on an owned page; the packaged gate uses this same
- * function with its explicitly scratch-profiled helper target. */
-export async function runDemoOnPage(page: import("puppeteer-core").Page, html: string, opts: RunDemoOptions = {}): Promise<DemoRunResult> {
+/** Production execution on an owned page. */
+async function runDemoOnPage(page: import("puppeteer-core").Page, html: string, opts: RunDemoOptions = {}): Promise<DemoRunResult> {
 	const settleMs = opts.settleMs ?? 2000;
 	const consoleErrors: string[] = [];
 	const pageErrors: string[] = [];

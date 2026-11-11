@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { sideConversationEntries, sideSegmentId, sideEntryPoints, sideChatLessonDocument } from "../src/core/side-chat.ts";
-import { asAgentMessages, endsInDismissal, nativeInputCause, needsContinuation, toLlmMessages, type LhMessage } from "../src/core/native-messages.ts";
+import { asAgentMessages, endsInDismissal, needsContinuation, toLlmMessages, type LhMessage } from "../src/core/native-messages.ts";
 import { projectView } from "../src/core/view.ts";
 import { serializeForSummary } from "../src/core/compaction.ts";
 import { sessionMarkdown } from "../src/core/session-markdown.ts";
@@ -32,7 +32,6 @@ describe("append-only raw learner–helper updates", () => {
 		const projected = toLlmMessages(asAgentMessages([...messages, ...updates]));
 		assert.equal(projected.at(-1)!.role, "user");
 		assert.doesNotMatch(JSON.stringify(projected), /customType|threadId|updates|generatedSummary|toldTutor/);
-		assert.equal(nativeInputCause(updates[0]!, messages), "neutral");
 		assert.deepEqual(entries([...messages, ...updates], [live]), []);
 	});
 	it("appends a partial reply's remaining text and later follow-ups without rewriting or repeating its prefix", () => {

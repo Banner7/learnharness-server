@@ -35,7 +35,7 @@ const origin = `http://127.0.0.1:${port}`;
 const env = {
 	PATH: process.env.PATH, HOME: home, TMPDIR: home, NODE_ENV: "development",
 	LH_DATA_DIR: path.join(home, "data"), LH_AUTH_FILE: path.join(home, "auth.json"),
-	LH_IGNORE_ENV_KEYS: "1", NEXT_TELEMETRY_DISABLED: "1",
+	NEXT_TELEMETRY_DISABLED: "1",
 	NEXT_FONT_GOOGLE_MOCKED_RESPONSES: path.join(home, "fonts.cjs"),
 };
 const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], {

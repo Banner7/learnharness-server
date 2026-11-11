@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import { test } from "node:test";
 import type { LhMessage } from "../src/core/native-messages.ts";
-import { pendingPluginQuestionOf, pluginQuestionCallsOf, pluginQuestionResultMatches, questionCallsOf, hasUnresolvedQuestion, toLlmMessages, needsContinuation, endsInDismissal, nativeInputCause, newUserMessage } from "../src/core/native-messages.ts";
+import { pendingPluginQuestionOf, pluginQuestionCallsOf, pluginQuestionResultMatches, questionCallsOf, hasUnresolvedQuestion, toLlmMessages, needsContinuation, endsInDismissal, newUserMessage } from "../src/core/native-messages.ts";
 import { inputAppends, dismissAppends, parseChatInput, parseDismissInput, questionRecoveryAppends } from "../src/core/input-events.ts";
 import { projectView } from "../src/core/view.ts";
 import { phaseAt3, phaseAt3Lh, teachStepIndex } from "../src/core/phases.ts";
@@ -101,21 +101,18 @@ test("duplicate native call ids and copied answers cannot resolve another occurr
 	assert(wire.some(m => m.role === "toolResult" && m.content.some(c => c.type === "text" && c.text.includes("interrupted"))), "old bare-id results must not suppress new-call repair");
 });
 
-test("genuine answers preserve false/zero/null/empty values and obey continuation/cause rules", () => {
+test("genuine answers preserve false/zero/null/empty values and obey continuation rules", () => {
 	const pose = assistant();
 	for (const value of [false, 0, null, "", [], "  code\n"] as JsonValue[]) {
 		const result = answer(pose, value);
 		assert.equal(pendingPluginQuestionOf([pose, result]), undefined);
 		assert.deepEqual(pluginQuestionCallsOf([pose, result]), []);
 		assert.equal(needsContinuation([pose, result]), true);
-		assert.equal(nativeInputCause(result, [pose]), "learner");
-		assert.equal(nativeInputCause({ ...result, lhQuestionOccurrence: undefined } as LhMessage, [pose]), "unrecognizable");
 	}
 	const cancelled = cancellation(pose, snapshot(pose).questionId);
 	assert.equal(pendingPluginQuestionOf([pose, cancelled]), undefined);
 	assert.equal(endsInDismissal([pose, cancelled]), true);
 	assert.equal(needsContinuation([pose, cancelled]), false);
-	assert.equal(nativeInputCause(cancelled, [pose]), "neutral");
 	assert.equal(needsContinuation([pose, { ...answer(pose), lhQuestionOccurrence: undefined }]), false);
 });
 

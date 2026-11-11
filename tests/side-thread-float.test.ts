@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { clampDragged, fitSideThreadFrame, fitResizableSideThreadFrame, placeSideThread, resizeSideThread, SIDE_THREAD_MIN_HEIGHT, SIDE_THREAD_WIDTH, type SideThreadResizeEdge } from "../components/side-thread-float.ts";
+import { clampDragged, fitResizableSideThreadFrame, placeSideThread, resizeSideThread, SIDE_THREAD_MIN_HEIGHT, SIDE_THREAD_WIDTH, type SideThreadResizeEdge } from "../components/side-thread-float.ts";
 
 const viewport = { width: 1400, height: 900 };
 

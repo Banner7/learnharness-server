@@ -11,7 +11,6 @@ const directory = fs.mkdtempSync(path.join(os.tmpdir(), "lh-settings-admission-"
 process.env.HOME = path.join(directory, "home");
 process.env.LH_DATA_DIR = path.join(directory, "data");
 process.env.LH_AUTH_FILE = path.join(directory, "auth.json");
-process.env.LH_IGNORE_ENV_KEYS = "1";
 fs.mkdirSync(process.env.HOME, { recursive: true });
 fs.mkdirSync(process.env.LH_DATA_DIR, { recursive: true });
 fs.writeFileSync(process.env.LH_AUTH_FILE, "{}");

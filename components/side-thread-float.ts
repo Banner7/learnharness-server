@@ -25,7 +25,7 @@ export function clampDragged(at: { x: number; y: number }, size: { width: number
 	return { x: Math.max(EDGE, Math.min(at.x, maxX)), y: Math.max(EDGE, Math.min(at.y, maxY)) };
 }
 
-export function fitSideThreadFrame(frame: { x: number; y: number; height: number }, width: number, viewport: SideThreadViewport): { x: number; y: number; height: number } {
+function fitSideThreadFrame(frame: { x: number; y: number; height: number }, width: number, viewport: SideThreadViewport): { x: number; y: number; height: number } {
 	const height = fitHeight(frame.height, viewport);
 	return { ...clampDragged(frame, { width, height }, viewport), height };
 }

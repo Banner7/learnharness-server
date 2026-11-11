@@ -13,6 +13,12 @@ import { stores } from "./stores.ts";
 /** Largest vault note the library scans or reads (2 MiB). */
 export const MAX_VAULT_NOTE_BYTES = 2 * 1024 * 1024;
 
+/** The note content hash. The scanner and the extractor must agree, or
+ *  every note re-extracts on the next scan. */
+export function hashVaultNote(bytes: Buffer | string): string {
+	return createHash("sha256").update(bytes).digest("hex");
+}
+
 /** The saved `library` section of the settings record, validated (the
  *  record keeps unknown sections verbatim, so its shape is checked here). */
 export function readLibrarySettings(): LibrarySettings | undefined {
@@ -61,9 +67,9 @@ async function walk(root: string, dir: string, exclude: readonly string[], out: 
 			// still marks it changed, and extraction refuses it.
 			try {
 				const stat = await fs.promises.stat(full);
-				hash = stat.size > MAX_VAULT_NOTE_BYTES
-					? createHash("sha256").update(`oversize:${stat.size}:${stat.mtimeMs}`).digest("hex")
-					: createHash("sha256").update(await fs.promises.readFile(full)).digest("hex");
+				hash = hashVaultNote(stat.size > MAX_VAULT_NOTE_BYTES
+					? `oversize:${stat.size}:${stat.mtimeMs}`
+					: await fs.promises.readFile(full));
 			} catch { continue; }
 			out.push({ path: rel, hash });
 		}

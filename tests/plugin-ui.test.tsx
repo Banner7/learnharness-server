@@ -413,7 +413,7 @@ describe("controlled plugin UI", () => {
 		const html = renderToStaticMarkup(<PluginComposer value="" onChange={() => {}} onSend={() => {}} />);
 		assert.match(html, /data-testid="composer"/);
 		assert.match(html, /Message…/);
-		assert.doesNotMatch(html, /data-file-path-input|data-file-path-default|Next problem|Ask, answer|Usage/);
+		assert.doesNotMatch(html, /data-file-path-input|Next problem|Ask, answer|Usage/);
 	});
 
 	it("shared model/thinking triggers own their canonical chrome typography", () => {
@@ -443,7 +443,7 @@ describe("controlled plugin UI", () => {
 		for (const token of ["font-ui", "text-xs", "text-muted-foreground", "pt-2"]) assert.ok(controls.classList.contains(token), token);
 		assert.equal(controls.querySelector('[data-testid="composer"]'), null);
 		assert.ok(document.querySelector('button[aria-label="Send"]')!.hasAttribute("disabled"));
-		assert.doesNotMatch(html, /data-file-path-input|data-file-path-default|Next problem|Usage/);
+		assert.doesNotMatch(html, /data-file-path-input|Next problem|Usage/);
 	});
 
 	it("schema rows reuse the shared settings controls with controlled values", () => {

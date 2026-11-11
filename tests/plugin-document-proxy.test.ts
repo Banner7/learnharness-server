@@ -3,7 +3,6 @@ import type { IncomingMessage } from "node:http";
 import { Readable } from "node:stream";
 import { it } from "node:test";
 import { getCloneableBody } from "next/dist/server/body-streams.js";
-import { NextRequest } from "next/server";
 // Installed Next retains this name for its Proxy matcher test helper.
 import { unstable_doesMiddlewareMatch as unstable_doesProxyMatch } from "next/experimental/testing/server";
 import { config, proxy } from "../proxy.ts";

@@ -1650,7 +1650,8 @@ export async function verifyPluginBrowser(url, options = {}) {
  * app module imports, host mutations or permanent browser globals are needed. */
 export async function observeSilentSubmissionPresentation(page) {
 	const audit = await page.evaluateHandle(() => {
-		const shell = document.querySelector('[data-attachment-composer]');
+		// The chat composer shell: the measured content wrapper's parent.
+		const shell = document.querySelector('[data-testid="composer"]')?.closest(".flow-root")?.parentElement;
 		if (!shell) throw new Error("Native submission shell is missing");
 		const violations = [];
 		const inspect = node => {

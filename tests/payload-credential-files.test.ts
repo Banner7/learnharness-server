@@ -1,4 +1,5 @@
-/** Exercise the real curator against synthetic payloads, never the repo payload. */
+/** Exercise the real curator against synthetic payloads, never the repo payload.
+ * Copied upstream data directories may hold these provider credential files. */
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 
 for (const name of ["chatgpt-credentials.json", "github-copilot-credentials.json", "xai-credentials.json"]) {
-	for (const secret of [name, `${name}.fixture.tmp`]) test(`payload curator refuses web credentials: ${secret}`, () => {
+	for (const secret of [name, `${name}.fixture.tmp`]) test(`payload curator refuses provider credential files: ${secret}`, () => {
 		const root = mkdtempSync(path.join(tmpdir(), "lh-sub-payload-"));
 		try {
 			mkdirSync(path.join(root, "scripts")); mkdirSync(path.join(root, ".next", "standalone"), { recursive: true }); mkdirSync(path.join(root, ".next", "static"));

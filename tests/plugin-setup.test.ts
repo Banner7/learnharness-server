@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import test from "node:test";
@@ -59,20 +59,4 @@ test("plugin setup stops at a failed locked install", () => {
 		assert.throws(() => setupPlugins(root, { run: (args: string[]) => { calls.push(args); throw new Error("Locked install failed"); } }), /Locked install failed/);
 		assert.deepEqual(calls, [["ci"]]);
 	});
-});
-
-test("contributor and CI entry points prepare plugins before typechecking or building", () => {
-	const root = path.resolve(import.meta.dirname, "..");
-	const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
-	assert.equal(pkg.scripts["plugins:setup"], "node scripts/setup-plugins.mjs");
-	for (const workflow of ["ci.yml"]) {
-		const source = readFileSync(path.join(root, ".github", "workflows", workflow), "utf8");
-		for (const section of source.split("- run: npm ci").slice(1)) {
-			const gate = /- run: npm run (typecheck|build)/.exec(section);
-			if (!gate) continue;
-			const setup = section.indexOf("- run: npm run plugins:setup");
-			assert.ok(setup >= 0 && setup < gate.index, `${workflow}: clean-checkout gates require plugin setup first`);
-		}
-	}
-	assert.match(readFileSync(path.join(root, "docs", "development.md"), "utf8"), /npm run plugins:setup/);
 });

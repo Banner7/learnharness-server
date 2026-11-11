@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { AUTH_FILE } from "../../../config.ts";
+import { globToRegex } from "../../core/glob.ts";
 import { comparisonPath, guardSourcePath, isWithin, realSourcePath as realOrMissing, resolvePolicy, type ResolvedFileAccessPolicy } from "./file-access.ts";
 
 /**
@@ -251,29 +252,6 @@ export function expandBraces(pattern: string): string[] {
 		alts.push(...expandBraces(before + alt + after));
 	}
 	return alts;
-}
-
-/** Glob → anchored RegExp. '*' stays within a segment, '**' crosses '/',
- *  '?' is one char, everything else literal. */
-export function globToRegex(glob: string): RegExp {
-	let re = "";
-	for (let i = 0; i < glob.length; i++) {
-		const c = glob[i]!;
-		if (c === "*") {
-			if (glob[i + 1] === "*") {
-				re += "[\\s\\S]*";
-				i++;
-				if (glob[i + 1] === "/") i++; // '**/' also eats the slash
-			} else {
-				re += "[^/]*";
-			}
-		} else if (c === "?") {
-			re += "[^/]";
-		} else {
-			re += c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-		}
-	}
-	return new RegExp(`^${re}$`);
 }
 
 /**

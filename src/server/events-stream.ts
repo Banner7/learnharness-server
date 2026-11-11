@@ -8,15 +8,14 @@
  * event type + a tiny payload; consumers respond by fetching truth
  * (/api/chats/:id, /api/jobs, /api/activity). No payload versioning, no
  * replay protocol — a reconnect resyncs with one ordinary fetch per
- * consumer. This is a DESKTOP app talking to localhost: holding N≈1-3
- * connections costs one socket pair each and zero traffic while idle
- * (owner ruling 2026-10-02 — polling's cloud economics don't exist at
- * loopback; the poll lattice it left behind is what this replaces).
+ * consumer. This is a single-owner server with a few open tabs: holding
+ * N≈1-3 connections costs one socket pair each and only the keepalive
+ * ping while idle — cheaper than the poll lattice it replaced.
  *
  * Wire dialect mirrors the turn stream (pi/ui-stream.ts): text/event-stream,
  * no-cache/no-transform, X-Accel-Buffering off — plus a `: ping` comment
- * every 25s to keep any intermediary from idling the socket out (locally
- * unnecessary, harmless, and it makes dead-connection detection cheap).
+ * every 25s to keep the reverse proxy (or any other intermediary) from
+ * idling the socket out; it also makes dead-connection detection cheap.
  *
  * The DIFFERENCE from the turn stream is lifetime: a turn's stream ends at
  * settle ([DONE]); this channel ends when the CLIENT goes away — cancel()

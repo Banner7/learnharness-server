@@ -2,7 +2,7 @@ import React, { act } from "react";
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { parseHTML } from "linkedom";
-import { appendToPrimaryInput, DICTATION_ACTIVE_ELSEWHERE, finishDictation, useDictation, useDictationTarget, type Dictation } from "../components/dictation.tsx";
+import { DICTATION_ACTIVE_ELSEWHERE, finishDictation, useDictation, useDictationTarget, type Dictation } from "../components/dictation.tsx";
 import { usePluginDictation } from "../components/plugin-dictation.tsx";
 import { claimPluginInputFocus, dispatchFocusedPluginShortcut } from "../components/plugin-input-focus.ts";
 import { notifySettingsSaved } from "../components/settings-signal.ts";
@@ -118,11 +118,8 @@ afterEach(async () => {
 
 test("mounted plugins never replace core insertion, question priority, or core finish", async () => {
 	const f = await fixture();
-	assert.equal(appendToPrimaryInput("file"), true);
-	assert.deepEqual(f.state.core, ["file"]);
 	f.state.questionClaimed = true;
 	await f.render();
-	appendToPrimaryInput("question file");
 	await act(async () => { f.core.toggle(); });
 	const socket = Socket.all[0]!;
 	await act(async () => { socket.open(); socket.final("spoken answer"); });
@@ -133,7 +130,7 @@ test("mounted plugins never replace core insertion, question priority, or core f
 	assert.equal(finished, false);
 	await act(async () => { socket.final("tail"); socket.end(); await finish; });
 	assert.equal(finished, true);
-	assert.deepEqual(f.state.question, ["question file", "spoken answer tail"]);
+	assert.deepEqual(f.state.question, ["spoken answer tail"]);
 	assert.deepEqual(f.state.plugin, []);
 });
 
@@ -226,7 +223,6 @@ test("a standalone plugin can own shortcuts without a core composer or primary t
 	await f.render();
 	f.registerFocus();
 	f.focus("plugin-input");
-	assert.equal(appendToPrimaryInput("must not reach plugin"), false);
 	await f.event("toggle-dictation");
 	assert.equal(f.plugin.phase, "connecting");
 	assert.equal(f.state.captures, 1);
