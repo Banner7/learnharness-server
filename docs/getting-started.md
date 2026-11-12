@@ -14,25 +14,17 @@ There are no ChatGPT, GitHub Copilot, or Grok sign-in connections.
 
 Choose **Strong**, **Cheap**, and **Vision** models in Settings. There are no factory model selections. New sessions start with Strong; background roles use their assigned slots or role overrides. A model selected inside an existing session belongs to that session and does not change background-role choices.
 
-Optional web search supports Tavily, Brave, Exa, Firecrawl, and hosted Ollama search; set the key for the engine you want to use on the server. Research can still fetch known URLs without a search key. Dictation has its own service key below.
+Optional web search supports Tavily, Brave, Exa, Firecrawl, and hosted Ollama search; set the key for the engine you want to use on the server. Research can still fetch known URLs without a search key.
 
 ## Start a session
 
 Choose **Teach** and describe what you want to understand. The agent probes your starting point, presents a plan, and teaches through explanations and checks. Reply naturally to accept or revise the plan.
 
-Use the thinking fields to explain your reasoning, uncertainty, or reaction—not only your selected answer. You can type or dictate. Your confidence is self-reported, not an independent assessment.
+Use the thinking fields to explain your reasoning, uncertainty, or reaction—not only your selected answer. You can type. Your confidence is self-reported, not an independent assessment.
 
 Choose **Practice** for problems rather than a lesson. Start from selected graph material or describe material directly. Submit your thinking as you work; the model's committed solution is revealed when the problem concludes. Use **Next problem** when ready to continue.
 
 Sessions are saved on the server, including earlier messages when context is compacted. The [keyboard guide](keyboard.md) covers submission, focus, question controls, and cancellation.
-
-## Dictation
-
-1. Create a [Deepgram API key](https://console.deepgram.com/) with the **Member role or higher**, required for [short-lived token minting](https://developers.deepgram.com/reference/auth/tokens/grant).
-2. Set it as `DEEPGRAM_API_KEY` on the server, then choose the language under **Settings → Providers → Dictation**. **Multilingual** supports automatic recognition and mixed-language speech.
-3. Use the microphone or **Mod+D** to start and stop. Review the text before sending. **Esc cancellation discards the pending transcript**; stop normally to keep it.
-
-Audio streams from your browser directly to Deepgram using a short-lived token. A `403 Insufficient permissions` error while obtaining that token can mean the key's role is insufficient.
 
 ## Use server files in a session
 
@@ -60,7 +52,7 @@ The graph stores propositions and reasoning chains with source provenance, **not
 
 Chats, graph records, and settings live under the server's data directory (`LH_DATA_DIR`, `/data` in the image). Credentials live in the server environment or in the config file beside it (`LH_CONFIG_FILE`), which is plaintext with restrictive file permissions, not an encrypted vault. Keep these private; do not share credential files or raw debug captures in bug reports.
 
-**Local storage does not mean local-only processing.** Configured models, the Claude Code CLI, web research, and dictation can receive content. A local custom model is a separate setup choice, not an offline guarantee for other enabled services.
+**Local storage does not mean local-only processing.** Configured models, the Claude Code CLI, and web research can receive content. A local custom model is a separate setup choice, not an offline guarantee for other enabled services.
 
 Click the context/cost row beneath the composer for Session stats. Dollar figures estimate known API costs; CLI and custom-provider usage are not treated as free. See [context, caching, and costs](compaction-accounting.md) for the details.
 

@@ -275,7 +275,7 @@ describe("SETTINGS_SECTIONS (the route's section map)", () => {
 		// providers are server configuration (LH_CUSTOM_PROVIDERS), not a section.
 		assert.deepEqual(
 			Object.keys(SETTINGS_SECTIONS),
-			["agent", "appearance", "graph", "compaction", "models", "dictation"],
+			["agent", "appearance", "graph", "compaction", "models"],
 		);
 	});
 });

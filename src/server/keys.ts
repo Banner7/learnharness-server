@@ -5,7 +5,7 @@
  * writes them.
  *
  * THE ENV SEAM (the architecture keystone): every consumer — models.ts's
- * openRouterApiKey(), the sub-agents, web.ts, the STT route — reads
+ * openRouterApiKey(), the sub-agents, web.ts — reads
  * process.env directly, and the agent layer may not import the store
  * layer. Instead the config file's keys are REFLECTED into the process env: at boot,
  * and again on every key read (initAuthEnv, cheap: the store re-parses the
@@ -192,9 +192,7 @@ export function keyStatuses(): AuthKeyStatus[] {
 }
 
 /** The live value for one var, env-first (the env-wins rule) — the canonical
- *  read for consumers that don't live behind the @/src/server barrel (the
- *  STT route was the one cold-boot hole: a first-ever request to it would
- *  otherwise read env before any fill-gap ran). */
+ *  read for consumers that don't live behind the @/src/server barrel. */
 /** keyValue for many lookups: one sync and one config read, then plain
  *  lookups (the providers surface asks for ~35 keys at once). */
 export function keySnapshot(): (id: string) => string | undefined {

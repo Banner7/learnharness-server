@@ -5,7 +5,7 @@
  * discipline, same as the per-chat and defaults routes); sections are
  * independent, so partial writes can never clobber each other.
  *
- *   section ∈ agent | appearance | graph | compaction | models | dictation
+ *   section ∈ agent | appearance | graph | compaction | models
  *   Body: the complete desired section object. Parse + validate strictly
  *   (server/settings-body.ts): a bad shape/type is a 400 carrying the
  *   supported list where one exists. The models section additionally

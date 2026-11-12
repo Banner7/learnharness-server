@@ -34,7 +34,6 @@ import {
 	type AgentSettings,
 	type BackgroundModelRole,
 	type FactorySettings,
-	type DictationSettings,
 	type CompactionSettings,
 	type GraphSettings,
 	type ModelSlot,
@@ -69,7 +68,6 @@ export type EffectiveAppearance = FactorySettings["appearance"];
 
 /** The concrete view: every knob resolved, no absent fields. */
 export interface EffectiveSettings {
-	dictation: Required<DictationSettings>;
 	agent: {
 		workerRequestConcurrency: number;
 		models: Record<BackgroundModelRole, EffectiveModelSpec | undefined>;
@@ -188,9 +186,6 @@ export function resolveSettings(record: UserSettings | null): EffectiveSettings 
 		models[role] = resolveModelSpec(role, agent.models?.[role], modelsSection);
 	}
 	return {
-		dictation: {
-			language: record?.dictation?.language ?? FACTORY_SETTINGS.dictation.language,
-		},
 		agent: {
 			workerRequestConcurrency: agent.workerRequestConcurrency ?? FACTORY_SETTINGS.agent.workerRequestConcurrency,
 			models,

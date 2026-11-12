@@ -35,9 +35,8 @@ export function isInputShortcutScopeEligible(scope: HTMLElement | null, controll
 
 /** Only the currently focused plugin control can claim these shortcuts.
  * Merely mounting a widget never changes the core fallback. */
-export type PluginInputShortcut = "toggle-dictation" | "open-model-picker" | "cycle-thinking";
+export type PluginInputShortcut = "open-model-picker" | "cycle-thinking";
 export type PluginInputFocusHandlers = {
-	toggleDictation?: () => void;
 	cycleModel?: () => void;
 	cycleThinking?: () => void;
 };
@@ -53,7 +52,6 @@ export function claimPluginInputFocus(root: HTMLElement, handlers: PluginInputFo
 
 export function dispatchFocusedPluginShortcut(action: string, controller?: InteractionLayersController | null): boolean {
 	const keys: Partial<Record<string, keyof PluginInputFocusHandlers>> = {
-		"toggle-dictation": "toggleDictation",
 		"open-model-picker": "cycleModel",
 		"cycle-thinking": "cycleThinking",
 	};

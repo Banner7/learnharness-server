@@ -1,7 +1,7 @@
 # UI Showcase
 
 A runnable **Community developer gallery**, not a Core plugin. This frontend-only
-LearnHarness plugin demonstrates **all 15 public `ctx.ui` methods** across **12 families**
+LearnHarness plugin demonstrates **all 14 public `ctx.ui` methods** across **11 families**
 in one scrollable, host-themed view, including page-body and explicit native-target
 surfaces. It has no backend, runtime dependencies, storage, workers or model generation.
 
@@ -10,7 +10,7 @@ surfaces. It has no backend, runtime dependencies, storage, workers or model gen
 - A matching LearnHarness host with the public Tree, Markdown, knowledge-picker and
   surface APIs, including targetless `openSurface(surface, { signal })`.
 - Manifest API version **1** and the declared minimum app version are necessary but
-  do not prove individual capabilities exist. Activation checks all 15 UI methods and
+  do not prove individual capabilities exist. Activation checks all 14 UI methods and
   required registrations and fails with an explicit missing-capability error; there
   is no copied or hand-rolled fallback. The presence of `openSurface` alone does not
   establish support for its targetless overload.
@@ -60,7 +60,7 @@ synthetic learning profile for development, not real installed plugins or record
 - Choose **UI Showcase** in the sidebar. The host supplies the top-bar title; the plugin supplies only the gallery body.
 - Every family has a **Reset** button. Values, accepted drafts and callback readouts are local to that mounted family. Reset remounts just that family's widgets and closes its owned overlays. Leaving the view clears its state.
 - Pick real catalog models or knowledge nodes. The model and thinking controls are linked only within their own family. Their triggers use the same compact UI typography as native controls. The standard composer's model, thinking and draft are independent of the standalone examples. Changing a local model clears its local thinking choice.
-- The standalone composer is the intentionally bare input row. The standard preset adds the native-style bordered text frame, with dictation/model/thinking controls **below and outside** that border. Explanatory text follows the configured reading font/size; family headings use compact settings-section styling.
+- The standalone composer is the intentionally bare input row. The standard preset adds the native-style bordered text frame, with model/thinking controls **below and outside** that border. Explanatory text follows the configured reading font/size; family headings use compact settings-section styling.
 - Send enters a **local simulation** and retains your draft. While busy with a nonempty draft, the host keeps Send available for steering. Clear the draft to expose **Stop**, or use **Complete simulation**, which is available throughout the busy state. This applies to both composer examples; nothing is submitted to a native conversation or model.
 - The **Buttons** family also includes neutral, green, red and amber badges using `mountBadge`. Text and one CSS color are plugin-controlled; the host supplies the native shape/typography and 15% background tint. These static examples do not run grading or tests.
 - **Start async example** returns an actually pending callback Promise. **Complete async example** resolves it. The host button does not automatically show a pending or disabled style while that Promise awaits; the pending readout and completion control are local to this demo. Reset, navigation or plugin disable also releases the pending Promise; no timer is used.
@@ -87,19 +87,9 @@ model/thinking/node values changes only plugin-local controlled values. However,
 explicit source-management actions inside the host picker retain their real host
 effects. Use synthetic data when exercising them.
 
-**Dictation is real and opt-in.** Choosing **Dictate** or a host microphone explicitly
-starts the normal dictation service, using your configured speech provider. It may send
-audio to that provider and incur cost. Mounting or resetting the gallery never starts
-recording. No recording state is fabricated. Transcript callbacks update only local
-demo state/drafts. The standard composer finishes dictation and awaits final delivery
-before its Send callback; the standalone example exposes **Finish
-dictation** separately. Cancel/disposal is scoped through that control's host handle;
-no global dictation service, keyboard handler or other owner's recording is touched.
-
 There are no model requests, provider setup changes, backend operations, persistence,
 worker starts, remote images or plugin-created network calls. Real catalog/knowledge
-controls may load host data normally, and explicitly started dictation uses the
-configured host service. Markdown is static, including a local Mermaid diagram;
+controls may load host data normally. Markdown is static, including a local Mermaid diagram;
 it contains no remote resources.
 
 All widgets use per-mount abort signals. Reset/abort disposes owned widgets, overlays
@@ -114,8 +104,7 @@ handlers or focus overrides are installed.
 | --- | --- |
 | Pickers | `mountModelPicker`, `mountThinkingPicker`, `mountKnowledgePicker`; real host catalogs/data, local controlled selection |
 | Composer | `mountComposer`; draft callbacks, local Send/Stop/busy/completion |
-| Dictation | `mountDictation`; explicit toggle, finish, cancel, transcript readout |
-| Standard composer | `mountStandardComposer`; independent state, linked local model/thinking, real optional dictation |
+| Standard composer | `mountStandardComposer`; independent state, linked local model/thinking |
 | Buttons | `mountButton`; all 6 non-custom variants, all 8 sizes, icon titles, disabled and manually completable async callback; `mountBadge` with neutral and three custom colors |
 | Settings rows | `mountSettingsRows`; toggle, text, dropdown, number, slider, descriptions, validation and disabled example |
 | Markdown | `mountMarkdown`; prose/list, TypeScript code, table, inline/display math, Mermaid |
@@ -142,7 +131,7 @@ They do not establish native layout, keyboard, Escape or focus behavior.
 ## Source reading route
 
 - [`src/main.ts`](src/main.ts): capability checks and sidebar/native top-bar registrations.
-- [`src/gallery.ts`](src/gallery.ts): `mountGallery` and `FAMILY_IDS`; start here for the 15 UI methods.
+- [`src/gallery.ts`](src/gallery.ts): `mountGallery` and `FAMILY_IDS`; start here for the 14 UI methods.
 - [`src/surfaces.ts`](src/surfaces.ts): page-body/native-target surfaces, menus/dialogs and nested ownership.
 - [`src/tree.ts`](src/tree.ts): controlled synthetic directory, independent selection and rich drafts.
 - [`src/dom.ts`](src/dom.ts): plugin-owned layout/readouts and scoped cleanup.
@@ -171,7 +160,7 @@ replacement button or claiming native busy styling.
 This is a public-API gallery, not a component redesign, persistence layer, model
 playground or worker runner. It does not alter native Escape/Tab/focus policy, host
 picker source-management capabilities or host-widget appearance. Missing catalogs,
-empty knowledge, microphone/provider errors and host API behavior are shown by the
+empty knowledge, provider errors and host API behavior are shown by the
 real controls, not replaced with fake fixtures. Report host defects separately
 rather than patching or hiding them in the plugin.
 

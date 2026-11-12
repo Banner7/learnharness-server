@@ -9,7 +9,6 @@ import type { Root } from "react-dom/client";
 import { ChatSessionComposer } from "../components/composer.tsx";
 import { ReadingThinkingField } from "../components/reading-thinking.tsx";
 import { readPathInput } from "../components/path-input-dom.ts";
-import { joinDictation } from "../components/dictation.tsx";
 
 const { window, document } = parseHTML("<html><body><div id='root'></div></body></html>");
 let active: Element = document.body;
@@ -84,7 +83,6 @@ describe("session text fields keep keystrokes local", () => {
 					onSend={() => {}}
 					onStop={() => {}}
 					sendAllowed
-					dictationActive={false}
 				/>
 			);
 		}
@@ -92,9 +90,9 @@ describe("session text fields keep keystrokes local", () => {
 		const host = await mount(<Parent />);
 		const editor = host.querySelector<HTMLElement>("[data-file-path-input]");
 		assert.ok(editor);
-		await typeText(editor, "dictated phrase");
-		assert.equal(readPathInput(editor), "dictated phrase");
-		assert.equal(latest, "dictated phrase");
+		await typeText(editor, "typed phrase");
+		assert.equal(readPathInput(editor), "typed phrase");
+		assert.equal(latest, "typed phrase");
 		assert.equal(parentRenders, 1, "typing only renders the local composer subtree");
 		assert.equal(host.querySelector<HTMLButtonElement>('button[aria-label="Send"]')?.disabled, false);
 
@@ -116,7 +114,6 @@ describe("session text fields keep keystrokes local", () => {
 					value={external.value}
 					revision={external.revision}
 					onChange={(value) => { latest = value; }}
-					claim={false}
 				/>
 			);
 		}
@@ -153,12 +150,12 @@ describe("session text fields keep keystrokes local", () => {
 				draft.current = value;
 				setRevision(previous => previous + 1);
 			};
-			append = value => replace(joinDictation(draft.current, value));
+			append = value => replace(`${draft.current} ${value}`);
 			return visible ? <ChatSessionComposer
 				busy={false} value={draft.current} revision={revision}
 				onChange={value => { draft.current = value; }}
 				onSend={() => { sent.push(draft.current); replace(""); }}
-				onStop={() => {}} sendAllowed dictationActive={false}
+				onStop={() => {}} sendAllowed
 			/> : null;
 		}
 		const host = await mount(<Parent />);
@@ -167,10 +164,10 @@ describe("session text fields keep keystrokes local", () => {
 		assert.equal(parentRenders, 1);
 		await act(async () => { refresh(); });
 		assert.equal(readPathInput(editor), "typed", "an unrelated owner render must not restore an old seed");
-		await act(async () => { append("dictated"); });
-		assert.equal(readPathInput(editor), "typed dictated");
+		await act(async () => { append("appended"); });
+		assert.equal(readPathInput(editor), "typed appended");
 		await act(async () => { host.querySelector("form")!.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })); });
-		assert.deepEqual(sent, ["typed dictated"]);
+		assert.deepEqual(sent, ["typed appended"]);
 		assert.equal(readPathInput(editor), "");
 		assert.equal(host.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.disabled, true);
 
@@ -188,9 +185,9 @@ describe("session text fields keep keystrokes local", () => {
 		assert.equal(readPathInput(editor), "refused send restored", "a remounted composer takes the current owner ref");
 	});
 
-	it("composer keeps dictation, busy steering/stop, compaction gating, and Next affordances", async () => {
+	it("composer keeps busy steering/stop, compaction gating, and Next affordances", async () => {
 		let update!: (patch: Partial<typeof flags>) => void;
-		let flags = { busy: false, sendAllowed: true, dictationActive: false, nextProblem: true };
+		let flags = { busy: false, sendAllowed: true, nextProblem: true };
 		let sends = 0;
 		let stops = 0;
 		let nexts = 0;
@@ -205,22 +202,18 @@ describe("session text fields keep keystrokes local", () => {
 		assert.ok(host.querySelector('[aria-label="Next problem"]'));
 		await submit();
 		assert.equal(nexts, 1);
-		await act(async () => { update({ dictationActive: true }); });
-		assert.equal(host.querySelector<HTMLButtonElement>('[aria-label="Send"]')!.disabled, false);
-		await submit();
-		assert.equal(sends, 1, "empty input still allows finish-first dictation send");
-		await act(async () => { update({ busy: true, dictationActive: false, nextProblem: false }); });
+		await act(async () => { update({ busy: true, nextProblem: false }); });
 		assert.ok(host.querySelector('[aria-label="Stop"]'));
 		await submit();
 		assert.equal(stops, 1);
 		await typeText(editorIn(host), "steer now");
 		assert.ok(host.querySelector('[aria-label="Send"]'));
 		await submit();
-		assert.equal(sends, 2);
+		assert.equal(sends, 1);
 		await act(async () => { update({ busy: false, sendAllowed: false }); });
 		assert.equal(host.querySelector<HTMLButtonElement>('[aria-label="Send"]')!.disabled, true);
 		await submit();
-		assert.equal(sends, 2, "a closed send gate must win over local text");
+		assert.equal(sends, 1, "a closed send gate must win over local text");
 	});
 
 	it("reading thoughts survive unrelated renders and explicit same-value restoration", async () => {
@@ -232,7 +225,7 @@ describe("session text fields keep keystrokes local", () => {
 			const [, setTick] = useState(0);
 			refresh = () => setTick(tick => tick + 1);
 			replace = value => { latest = value; setSeed(previous => ({ value, revision: previous.revision + 1 })); };
-			return <ReadingThinkingField {...seed} onChange={value => { latest = value; }} claim={false} />;
+			return <ReadingThinkingField {...seed} onChange={value => { latest = value; }} />;
 		}
 		const host = await mount(<Parent />);
 		const editor = editorIn(host);

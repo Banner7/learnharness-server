@@ -21,7 +21,7 @@ import { IS_MAC } from "../src/core/keyboard.ts";
 
 describe("hintText — the parenthesized composition", () => {
 	it("a registry action appends the LIVE binding (override-aware source)", () => {
-		assert.equal(hintText("Dictate", "toggle-dictation"), IS_MAC ? "Dictate (⌘D)" : "Dictate (Ctrl+D)");
+		assert.equal(hintText("Model selector", "open-model-picker"), IS_MAC ? "Model selector (⌘K)" : "Model selector (Ctrl+K)");
 		assert.equal(hintText("Settings", "open-settings"), IS_MAC ? "Settings (⌘,)" : "Settings (Ctrl+,)");
 		assert.equal(hintText("Search sessions", "sessions-search"), IS_MAC ? "Search sessions (⌘⇧F)" : "Search sessions (Ctrl+Shift+F)");
 	});
@@ -33,7 +33,7 @@ describe("hintText — the parenthesized composition", () => {
 
 	it("no shortcut = the label alone, no dangling dash", () => {
 		assert.equal(hintText("Home"), "Home");
-		assert.equal(hintText("Stop dictation (Esc)"), "Stop dictation (Esc)");
+		assert.equal(hintText("Stop (Esc)"), "Stop (Esc)");
 	});
 });
 
@@ -47,13 +47,13 @@ describe("Hint — the mechanism (SSR: the tooltip itself stays closed)", () => 
 	it("asChild: no wrapper DOM — the control keeps its own testid and classes", () => {
 		const html = renderToStaticMarkup(
 			createElement(Hint, {
-				label: "Dictate",
-				action: "toggle-dictation",
-				children: createElement("button", { "data-testid": "dictation-toggle", className: "the-quiet-chrome" }, "Dictate"),
+				label: "Model selector",
+				action: "open-model-picker",
+				children: createElement("button", { "data-testid": "model-toggle", className: "the-quiet-chrome" }, "Model"),
 			}),
 		);
 		assert.match(html, /^<button/, "the trigger IS the button — nothing wraps it");
-		assert.ok(html.includes('data-testid="dictation-toggle"'));
+		assert.ok(html.includes('data-testid="model-toggle"'));
 		assert.ok(html.includes("the-quiet-chrome"));
 		assert.ok(!html.includes("<span"), "no portal content renders while closed");
 	});

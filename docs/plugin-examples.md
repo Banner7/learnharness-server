@@ -10,7 +10,7 @@ building or exercising it: plugins are trusted local code, not sandboxed extensi
 | Start here | Role | What to learn |
 | --- | --- | --- |
 | [Hello plugin](../examples/plugins/hello-plugin/README.md) | Minimal starter; no build | Frontend activation, a view, explicit action placements, a host button/dialog and per-mount cleanup |
-| [UI Showcase](../plugins/ui-showcase/README.md) | Runnable Community developer gallery | All 15 public UI methods, controlled values, family-local Reset and overlay ownership |
+| [UI Showcase](../plugins/ui-showcase/README.md) | Runnable Community developer gallery | All 14 public UI methods, controlled values, family-local Reset and overlay ownership |
 | [Flashcards](../plugins/flashcards/README.md) | Core source reference | A complete feature: knowledge/document input, durable worker outcomes, plugin-owned storage, tree, review surfaces and settings |
 | [Coding questions](../plugins/coding-questions/README.md) | Core source reference | Teaching questions and repeated practice submissions, controlled editors, processing observations and saved-result rendering |
 | [Drawing Pad](../plugins/drawing-pad/README.md) | Core source reference | Session-context actions, shortcuts, surfaces, learner-submission image attachment and acknowledgment-aware draft consumption |
@@ -227,15 +227,15 @@ transparent appearance and the distinction between static drawing and simulation
 Rendering makes no model request. TeX Worker bounds and SVG sanitization are local
 feature safeguards, not a sandbox for arbitrary plugin JavaScript.
 
-### UI Showcase: all 15 UI methods
+### UI Showcase: all 14 UI methods
 
 The [README gallery map](../plugins/ui-showcase/README.md#gallery-map) groups all methods
-into 12 families. Start in [`src/gallery.ts`](../plugins/ui-showcase/src/gallery.ts):
+into 11 families. Start in [`src/gallery.ts`](../plugins/ui-showcase/src/gallery.ts):
 
 | Area | Methods |
 | --- | --- |
 | Pickers | `mountModelPicker`, `mountThinkingPicker`, `mountKnowledgePicker` |
-| Writing | `mountComposer`, `mountDictation`, `mountStandardComposer` |
+| Writing | `mountComposer`, `mountStandardComposer` |
 | Controls/content | `mountButton`, `mountBadge`, `mountSettingsRows`, `mountMarkdown`, `mountTree`, `mountWorkerResult` |
 | Overlays | `openMenu`, `openDialog`, `openSurface` |
 
@@ -247,11 +247,9 @@ page-body/native-target and nested ownership, and
 [`tests/fixture.ts`](../plugins/ui-showcase/tests/fixture.ts) simulates host callbacks;
 it does not check actual host UI.
 
-The gallery's Send/Stop controls simulate work locally. **Dictation is real when
-explicitly started**, may send audio to the configured speech provider and can incur
-cost. The knowledge picker is the actual host control: explicit source-management
-actions affect real sources, even though gallery selection stays local. Use synthetic
-data; do not start dictation to inspect the gallery.
+The gallery's Send/Stop controls simulate work locally. The knowledge picker is the
+actual host control: explicit source-management actions affect real sources, even
+though gallery selection stays local. Use synthetic data.
 
 ## Focused recipes for gaps
 

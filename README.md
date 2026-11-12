@@ -56,7 +56,7 @@ Based on [LearnHarness](https://github.com/amosblomqvist/learnharness) by Amos B
 ```sh
 git clone https://github.com/Banner7/learnharness-server.git
 cd learnharness-server
-docker build -t learnharness:0.2.1 .
+docker build -t learnharness:0.2.2 .
 
 mkdir -p data secrets/config claude && chown 1000:1000 claude
 cp deploy/config.example.json secrets/config/config.json
@@ -88,7 +88,7 @@ Set these in the server environment. With Docker, that is `secrets/runtime.env`.
 | `LH_VAULT_EXCLUDE` | No | Comma-separated skip patterns (`folder/`, `path/note.md`, `*` and `**` globs) that seed the Library skip list until one is saved. |
 | `LH_DATA_DIR` | No | Chats, graph, settings, prompts. `/data` in the image. |
 | Provider keys | No | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY` and the others listed in `src/core/auth-keys.ts`. Set them in the environment or in the config file's `keys`; the environment wins. |
-| Search and dictation keys | No | `TAVILY_API_KEY`, `BRAVE_API_KEY`, `EXA_API_KEY`, `FIRECRAWL_API_KEY`, `OLLAMA_API_KEY`, `DEEPGRAM_API_KEY`. |
+| Search keys | No | `TAVILY_API_KEY`, `BRAVE_API_KEY`, `EXA_API_KEY`, `FIRECRAWL_API_KEY`, `OLLAMA_API_KEY`. |
 | `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR` | No | Authenticate the Claude Code CLI in the image. See [Claude Code](docs/claude-code.md). |
 | `CHROME_PATH` | No | Chrome executable for demo verification. Set in the image. |
 
@@ -102,7 +102,7 @@ Credentials are never entered in the app: the Providers page is read-only, and t
 - The access gate is for a single owner. It is not multi-user hosting: everyone admitted sees every chat and setting.
 - Keep the container port on loopback behind an authenticated HTTPS proxy. Never publish the port directly.
 - Agent file tools can read files the server's user can read, minus a sensitive-path guard. Mount only what you want the agent to see.
-- Model providers, web research and dictation services receive the content needed for each request.
+- Model providers and web research receive the content needed for each request.
 
 > [!CAUTION]
 > **Coding Questions runs learner and model code on the server without a sandbox**, as the server's user, with `node` and `python3`. Disable the plugin if that is not acceptable. Community plugins are trusted code too: their backends run inside the server process with its file and network access.
@@ -122,6 +122,7 @@ Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 | Look | Default theme | Kasumi by default, plus an Automatic theme that follows the system light/dark setting; the old default is kept as "Classic Dark" |
 | Claude Code | Enabled in Settings | Enabled in the config file; the CLI is pinned in the image |
 | Local files | Picker and drag-and-drop attach local paths | Files on your device cannot be attached; paste a path on the server instead |
+| Dictation | Built-in voice dictation through Deepgram | Removed; use the device keyboard's dictation |
 
 Upstream is not merged wholesale. Each upstream release is reviewed, and selected features and fixes are brought over. Version 0.1.0 started from upstream 0.6.0; see the [release notes](docs/releases) for what each version took.
 

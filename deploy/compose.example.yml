@@ -8,7 +8,7 @@
 services:
   learnharness:
     build: .
-    image: learnharness:0.2.1
+    image: learnharness:0.2.2
     init: true
     restart: unless-stopped
     ports:

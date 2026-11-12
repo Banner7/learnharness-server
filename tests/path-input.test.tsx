@@ -360,7 +360,7 @@ test("immutable SSR fallback never stomps native edits, controlled updates, chip
 	assert.equal(f.root.dataset.empty, "true");
 });
 
-test("external dictation append/reset", async () => {
+test("external append/reset", async () => {
 	const f = await fixture("one two");
 	f.select(f.value.length);
 	await f.external(`${f.value}\nspoken words`);

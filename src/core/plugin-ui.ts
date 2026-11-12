@@ -46,27 +46,10 @@ export interface PluginComposerProps {
 	placeholder?: string;
 	autoFocus?: boolean;
 }
-export interface PluginDictationProps {
-	disabled?: boolean;
-	onTranscript: PluginUiCallback<string>;
-}
-export interface PluginDictationHandle extends PluginWidgetHandle<PluginDictationProps> {
-	/** Start recording when idle, or stop and keep speech when active. One recording
-	 * owner is allowed per window; a competing start reports an error. */
-	toggle(): void;
-	/** Stop this recording and await transcript delivery before sending. Does not
-	 * start capture when idle; delivery failures can reject. This does not send a
-	 * message or update a hidden native composer. */
-	finish(): Promise<void>;
-	/** Cancel capture and discard buffered speech rather than flushing it. Does not
-	 * undo text already delivered through onTranscript. Disposal/abort also cancels. */
-	cancel(): void;
-}
 export interface PluginStandardComposerProps {
 	composer: PluginComposerProps;
 	model: PluginModelPickerProps;
 	thinking: PluginThinkingPickerProps;
-	dictation: PluginDictationProps;
 }
 export interface PluginButtonColorState {
 	background?: string;
@@ -177,15 +160,9 @@ export interface PluginUi {
 	 * Host manages origin, focus and selector lifetime; no graph-write API is added. */
 	mountKnowledgePicker(container: HTMLElement, props: PluginKnowledgePickerProps, options: PluginWidgetOptions): PluginWidgetHandle<PluginKnowledgePickerProps>;
 	/** Mount a controlled text composer with send/stop callbacks and return its
-	 * handle. No default attachment/drop handling or model dispatch is added;
-	 * standalone users coordinate dictation completion themselves. */
+	 * handle. No default attachment/drop handling or model dispatch is added. */
 	mountComposer(container: HTMLElement, props: PluginComposerProps, options: PluginWidgetOptions): PluginWidgetHandle<PluginComposerProps>;
-	/** Mount native dictation into onTranscript only; returns update/dispose plus
-	 * toggle/finish/cancel controls. Abort/dispose cancels capture. Speech never
-	 * targets a hidden native composer; recording ownership is per window. */
-	mountDictation(container: HTMLElement, props: PluginDictationProps, options: PluginWidgetOptions): PluginDictationHandle;
-	/** Mount text entry with model/thinking/dictation controls. Finishes dictation
-	 * before onSend; no attachment, usage or practice controls are included. Returns
+	/** Mount text entry with model/thinking controls. No attachment, usage or practice controls are included. Returns
 	 * a controlled handle; replace whole nested control props on update. */
 	mountStandardComposer(container: HTMLElement, props: PluginStandardComposerProps, options: PluginWidgetOptions): PluginWidgetHandle<PluginStandardComposerProps>;
 	/** Mount a native-style button and return its handle. SVG is trusted plugin

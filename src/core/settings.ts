@@ -35,7 +35,6 @@ import { CLAUDE_CODE_PROVIDER } from "./contracts/claude-code.ts";
 import type { ModelRole } from "../../config.ts";
 import type { ChatSettings } from "./contracts/chat.ts";
 import { isSearchEngineId, type SearchEngineId } from "./search.ts";
-import { isDictationLanguage, type DictationLanguage } from "./dictation.ts";
 import { parseFileAccessSettings, type FileAccessSettings } from "./file-access.ts";
 import { COLOR_OVERRIDE_KEYS, DEFAULT_THEME_ID, isThemeId, type AppearanceColorOverrides } from "./themes.ts";
 
@@ -243,11 +242,6 @@ export const ROLE_SLOT: Readonly<Record<ModelRole, ModelSlotName>> = {
 	sideQuestion: "strong", // the conversation chain, like prober/teacher (resolveSideQuestionSpec)
 };
 
-/** One app-wide dictation preference, shared by every composer. */
-export interface DictationSettings {
-	language?: DictationLanguage;
-}
-
 /** Agent settings — everything about the non-conversation machinery. */
 export interface AgentSettings {
 	/** Maximum simultaneous background-worker model requests (default 8).
@@ -393,7 +387,6 @@ export interface CompactionSettings {
  *  preserved verbatim by the sanitizer (forward-compat with newer records). */
 export interface UserSettings {
 	version: number;
-	dictation?: DictationSettings;
 	agent?: AgentSettings;
 	/** The strong/cheap/vision model slots (model slots wave, 2026-09-20). */
 	models?: ModelsSettings;
@@ -411,7 +404,6 @@ export interface UserSettings {
 export interface FactorySettings {
 	version: number;
 	agent: Required<Pick<AgentSettings, "workerRequestConcurrency">>;
-	dictation: Required<DictationSettings>;
 	appearance: {
 		theme: string;
 		background: string | null;
@@ -433,7 +425,6 @@ export interface FactorySettings {
 export const FACTORY_SETTINGS: FactorySettings = {
 	version: CURRENT_SETTINGS_VERSION,
 	agent: { workerRequestConcurrency: 8 },
-	dictation: { language: "en" },
 	appearance: {
 		theme: DEFAULT_THEME_ID, // Automatic: Kasumi Sand/Ink by the system
 		background: null, // null = the active theme's background
@@ -676,13 +667,6 @@ export function sanitizeUserSettings(raw: unknown): UserSettings | null {
 	const out: UserSettings = {
 		version: typeof r.version === "number" && Number.isInteger(r.version) && r.version >= 1 ? r.version : CURRENT_SETTINGS_VERSION,
 	};
-	if (r.dictation !== undefined) {
-		const raw = r.dictation;
-		out.dictation = raw !== null && typeof raw === "object" && !Array.isArray(raw) &&
-			isDictationLanguage((raw as Record<string, unknown>).language)
-			? { language: (raw as DictationSettings).language }
-			: {};
-	}
 	if (r.agent !== null && typeof r.agent === "object" && !Array.isArray(r.agent)) {
 		out.agent = sanitizeAgent(r.agent as Record<string, unknown>);
 	}

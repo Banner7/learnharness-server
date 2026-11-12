@@ -1,6 +1,6 @@
 # LearnHarness — container deployment
 
-Build and run the v0.2.1 server (Next.js standalone) in a container, behind an
+Build and run the v0.2.2 server (Next.js standalone) in a container, behind an
 authenticated reverse proxy (e.g. Tailscale Serve). The app's own access gate
 is fail-closed: without the gate variables configured, **every request is
 refused**, which is the intended safety property for a public deployment.
@@ -12,7 +12,7 @@ refused**, which is the intended safety property for a public deployment.
 ## Build
 
 ```sh
-docker build -t learnharness:0.2.1 .
+docker build -t learnharness:0.2.2 .
 ```
 
 The build runs `npm ci` → `npm run plugins:setup` → `npm run build` (core
@@ -214,8 +214,8 @@ file's `keys` or in `runtime.env` (environment wins). Full list from
 `OPENCODE_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`, `QWEN_TOKEN_PLAN_CN_API_KEY`,
 `TYPESAFE_API_KEY`, `ZAI_CODING_CN_API_KEY`.
 
-Search/dictation adapters: `TAVILY_API_KEY`, `BRAVE_API_KEY`, `EXA_API_KEY`,
-`FIRECRAWL_API_KEY`, `OLLAMA_API_KEY`, `DEEPGRAM_API_KEY`.
+Search adapters: `TAVILY_API_KEY`, `BRAVE_API_KEY`, `EXA_API_KEY`,
+`FIRECRAWL_API_KEY`, `OLLAMA_API_KEY`.
 
 ### Runtime hygiene (set by the image)
 

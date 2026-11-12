@@ -253,7 +253,7 @@ export const PathInput = React.forwardRef<HTMLDivElement, PathInputProps>(functi
 				if (next === current) return;
 				remember();
 				const previous = snapshot();
-				// Dictation appends are undoable; a controlled reset starts fresh history.
+				// Appends are undoable; a controlled reset starts fresh history.
 				if (next && next.startsWith(current)) history.push(previous);
 				else history.reset();
 				const selection = saved.anchor === current.length && saved.focus === current.length

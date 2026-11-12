@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { ViewReaderRef } from "./session-view-readers";
 import { ChevronRightIcon } from "lucide-react";
 import { ToolContentResponse } from "@/components/ai-elements/message";
 import { Button } from "@/components/ui/button";
-import { joinDictation, useDictationTarget } from "@/components/dictation";
 import { useEnterSubmits } from "@/components/enter-submits";
 import { useOptionalInteractionLayers } from "./interaction-layers";
 import { isInteractionScopeEligible } from "./plugin-input-focus";
@@ -56,8 +55,6 @@ export interface PracticeDockProps {
 	};
 	hasPendingInput?: boolean;
 	preparing?: boolean;
-	/** Escape in the thinking field stops dictation (threaded from the page). */
-	onEscape?: () => void;
 	/** Compaction is running for this chat (owner round 14): the thinking
 	 *  POST would block on the server's compaction gate — disable submit
 	 *  and say so in the hint row. The server registry is the real gate;
@@ -65,16 +62,15 @@ export interface PracticeDockProps {
 	compactionRunning?: boolean;
 }
 
-export function PracticeDock({ viewReader, problemCallId, input, expanded, onExpand, onSubmit, onPrepareSubmission, customInput, hasPendingInput = false, preparing = false, onEscape, compactionRunning = false }: PracticeDockProps) {
+export function PracticeDock({ viewReader, problemCallId, input, expanded, onExpand, onSubmit, onPrepareSubmission, customInput, hasPendingInput = false, preparing = false, compactionRunning = false }: PracticeDockProps) {
 	const controller = useOptionalInteractionLayers();
 	const rootRef = useRef<HTMLElement>(null);
 	const [nativeThinking, setNativeThinking] = useState("");
 	const custom = useRef(customInput); custom.current = customInput;
 	const thinking = customInput ? customInput.thinking : nativeThinking;
 	const setThinking = (value: string) => { if (custom.current) custom.current.onThinkingChange(value); else setNativeThinking(value); };
-	// Ref MIRRORS the field ("nothing gets lost", the question-dock
-	// discipline): a submit resuming after `await finishDictation()` reads
-	// the tail, never a stale closure.
+	// Ref MIRRORS the field (the question-dock discipline): a submit
+	// reads the current text, never a stale closure.
 	const thinkingRef = useRef(thinking); thinkingRef.current = thinking;
 	const editRevision = useRef(0);
 	useLayoutEffect(() => {
@@ -83,18 +79,6 @@ export function PracticeDock({ viewReader, problemCallId, input, expanded, onExp
 		viewReader.current = read;
 		return () => { if (viewReader.current === read) viewReader.current = null; };
 	}, [viewReader]);
-
-	useDictationTarget(
-		useCallback(
-			(t: string) => {
-				const v = joinDictation(thinkingRef.current, t);
-				thinkingRef.current = v; editRevision.current++;
-				setThinking(v);
-			},
-			[],
-		),
-		true,
-	);
 
 	useLayoutEffect(() => { viewReader?.changed?.(); }, [viewReader, thinking]);
 	const submit = () => {
@@ -115,8 +99,8 @@ export function PracticeDock({ viewReader, problemCallId, input, expanded, onExp
 		onSubmit(text);
 	};
 
-	/* ENTER SUBMITS FROM ANYWHERE (owner round 6, 2026-10-05): dictation
-	 * means the field is often never focused — the window-level Enter
+	/* ENTER SUBMITS FROM ANYWHERE (owner round 6, 2026-10-05): the
+	 * field is often never focused — the window-level Enter
 	 * (typing surfaces and buttons excluded) submits the trace. Mounted
 	 * while the dock is — collapsed bar included (the trace survives). */
 	useEnterSubmits(submit, rootRef);
@@ -172,13 +156,12 @@ export function PracticeDock({ viewReader, problemCallId, input, expanded, onExp
 					}}
 					onKeyDown={(e) => {
 						if (!isInteractionScopeEligible(e.currentTarget, controller)) return;
-						// Esc ends dictation — stopPropagation claims it (the
-						// keyboard machine) so the window chain doesn't also fire.
-						if (e.key === "Escape" && onEscape) {
+						// The field claims Esc (the keyboard machine) so the
+						// window chain doesn't also fire.
+						if (e.key === "Escape") {
 							controller?.claimEscape(e);
 							e.preventDefault();
 							e.stopPropagation();
-							onEscape();
 							return;
 						}
 						// Enter SENDS — the single lane (owner round 2, 2026-10-05);

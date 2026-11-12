@@ -15,7 +15,6 @@ import { AUTH_KEYS, type AuthKeyStatus, type AuthProviderInfo } from "@/src/core
 import { SettingsGroup } from "./controls.tsx";
 import { ClaudeCodeInstallationStatus } from "./claude-code-status.tsx";
 import { FOCUS_REFRESH_MS, useModelCatalog } from "@/components/model-catalog";
-import { DictationLanguageSetting } from "@/components/dictation-language";
 
 interface KeysResponse {
 	keys: AuthKeyStatus[];
@@ -134,8 +133,7 @@ function StatusTableRow({
 }
 
 export function KeysSection({
-	/** A deep-linked row to highlight on arrival (zero-keys wave): the
-	 *  dictation error's click lands here on DEEPGRAM_API_KEY. */
+	/** A deep-linked row to highlight on arrival (zero-keys wave). */
 	initialRow,
 }: {
 	initialRow?: string;
@@ -220,8 +218,8 @@ export function KeysSection({
 				<ClaudeCodeInstallationStatus enabled={claudeCodeEnabled} />
 			</SettingsGroup>
 
-			{(["Dictation", "Search"] as const).map((label) => <SettingsGroup key={label} label={label} testid={label === "Dictation" ? "group-dictation" : "group-search"}>
-				{toolRows.filter((status) => label === "Dictation" ? status.id === "DEEPGRAM_API_KEY" : status.id !== "DEEPGRAM_API_KEY").map((status) => (
+			<SettingsGroup label="Search" testid="group-search">
+				{toolRows.map((status) => (
 					<StatusTableRow
 						key={status.id}
 						label={status.info?.label ?? status.id}
@@ -231,8 +229,7 @@ export function KeysSection({
 						testid={`key-${status.id.toLowerCase()}`}
 					/>
 				))}
-				{label === "Dictation" && <DictationLanguageSetting />}
-			</SettingsGroup>)}
+			</SettingsGroup>
 		</div>
 	);
 }

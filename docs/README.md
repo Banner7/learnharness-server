@@ -3,7 +3,7 @@
 ## User guides
 
 - [Deployment](../deploy/README.md) — build and run the Docker image behind an authenticated proxy.
-- [Getting started](getting-started.md) — signing in, models, sessions, dictation, server files, notes imports, and the vault library.
+- [Getting started](getting-started.md) — signing in, models, sessions, server files, notes imports, and the vault library.
 - [Keyboard shortcuts](keyboard.md) — defaults, rebinding, and navigation.
 - [Claude Code](claude-code.md) — enable the pinned CLI on the server and troubleshoot it.
 - [Custom and local models](custom-providers.md) — declare OpenAI-compatible providers in the server config file.
@@ -24,6 +24,7 @@
 
 ## Releases
 
+- [v0.2.2](releases/v0.2.2.md)
 - [v0.2.1](releases/v0.2.1.md)
 - [v0.2.0](releases/v0.2.0.md)
 - [v0.1.1](releases/v0.1.1.md)

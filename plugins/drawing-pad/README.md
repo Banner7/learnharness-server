@@ -221,7 +221,7 @@ remount/cancellation cleanup, fonts, shortcuts and right-drag/pen gestures. `--b
 loads `dist/main.js`; source-mode tests do not regenerate the bundle.
 
 Use disposable data and loopback fixtures, not real learning profiles or paid providers.
-These checks do not establish real-tablet, installed-app, microphone, real-model or
+These checks do not establish real-tablet, installed-app, real-model or
 cross-platform behavior. This project has no `test:native` script.
 
 ## Source reading route

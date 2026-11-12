@@ -26,12 +26,6 @@ export interface AuthKeyInfo {
 
 export const AUTH_KEYS: readonly AuthKeyInfo[] = [
 	{
-		id: "DEEPGRAM_API_KEY",
-		label: "Deepgram",
-		description: "Speech-to-text key for dictation — needs ≥ Member permission in the Deepgram console to mint tokens.",
-		docsUrl: "https://console.deepgram.com/",
-	},
-	{
 		id: "TAVILY_API_KEY",
 		label: "Tavily",
 		description: "Web-search engine for the researcher sub-agent (AI-native search API). Setting the key activates it — no engine toggle needed.",
