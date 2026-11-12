@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import net from "node:net";
@@ -20,7 +20,7 @@ const root = path.resolve(import.meta.dirname, "..");
 const home = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "lh364-ui-"));
 const data = path.join(home, "data");
 fs.mkdirSync(path.join(data, "chats"), { recursive: true });
-fs.writeFileSync(path.join(home, "auth.json"), "{}");
+fs.writeFileSync(path.join(home, "config.json"), "{}");
 const require = createRequire(import.meta.url);
 const { getFontAxes } = require("next/dist/compiled/@next/font/dist/google/get-font-axes.js");
 const { getGoogleFontsUrl } = require("next/dist/compiled/@next/font/dist/google/get-google-fonts-url.js");
@@ -69,7 +69,11 @@ fs.writeFileSync(path.join(data, "chats", `${chatId}.json`), JSON.stringify({ id
 const listener = net.createServer(); listener.listen(0, "127.0.0.1"); await once(listener, "listening");
 const port = listener.address().port; await new Promise(resolve => listener.close(resolve));
 const origin = `http://127.0.0.1:${port}`;
-const env = { PATH: process.env.PATH, HOME: home, TMPDIR: home, LH_DATA_DIR: data, LH_AUTH_FILE: path.join(home, "auth.json"), NODE_ENV: "development", NEXT_TELEMETRY_DISABLED: "1", NEXT_FONT_GOOGLE_MOCKED_RESPONSES: path.join(home, "fonts.cjs") };
+// The web-access gate fails closed: give the child an origin and a token,
+// and send the matching Basic credentials from the browser.
+const accessToken = randomBytes(32).toString("hex");
+const authorization = `Basic ${Buffer.from(`learnharness:${accessToken}`).toString("base64")}`;
+const env = { PATH: process.env.PATH, HOME: home, TMPDIR: home, LH_DATA_DIR: data, LH_CONFIG_FILE: path.join(home, "config.json"), LH_WEB_ORIGIN: origin, LH_WEB_ACCESS_TOKEN: accessToken, NODE_ENV: "development", NEXT_TELEMETRY_DISABLED: "1", NEXT_FONT_GOOGLE_MOCKED_RESPONSES: path.join(home, "fonts.cjs") };
 const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], { cwd: root, env, detached: true, stdio: ["ignore", "pipe", "pipe"] });
 let logs = "";
 server.stdout.on("data", chunk => { logs += chunk; }); server.stderr.on("data", chunk => { logs += chunk; });
@@ -83,7 +87,7 @@ try {
 		server.stdout.on("data", ready); server.once("exit", code => { clearTimeout(timeout); reject(new Error(`server exited ${code}`)); }); ready();
 	});
 	browser = await puppeteer.launch({ executablePath: process.env.LH_TEST_CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true, protocolTimeout: 30000, userDataDir: path.join(home, "browser"), env, args: ["--disable-background-networking", "--disable-sync", "--no-first-run", "--disable-default-apps"] });
-	page = await browser.newPage(); page.setDefaultTimeout(30000);
+	page = await browser.newPage(); await page.setExtraHTTPHeaders({ Authorization: authorization }); page.setDefaultTimeout(30000);
 	page.on("pageerror", error => errors.push(error.message));
 	await page.setRequestInterception(true);
 	page.on("request", async request => {

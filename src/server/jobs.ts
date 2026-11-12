@@ -710,31 +710,31 @@ export function recoverStaleJobs(): void {
 	if (now - s.lastSweepAt < SWEEP_THROTTLE_MS) return;
 	s.lastSweepAt = now;
 	try {
-		for (const chat of stores.chatStore.listChats()) {
-			for (const job of stores.jobStore.listJobs(chat.id)) {
-				if (isJobLive(job.id)) continue; // never re-run beside live computation
-				if (!stores.chatStore.getChat(job.chatId)) continue;
-				if (isTurnRunning(job.chatId)) continue;
-				const recovered = normalizeLegacyResult(job);
-				if (recovered.delivery?.status === "pending") {
-					restorePendingDeliveries(job.chatId);
-					void pump(job.chatId);
-				} else if (job.status === "running" && !job.result) {
-					if (job.kind === "plugin") {
-						// Canonical task reads only; never respawn plugin tools/code.
-						if (s.recoverPlugin) void s.recoverPlugin(job).catch((error: unknown) => {
-							if (stores.jobStore.getJob(job.id)?.status !== "running") return;
-							const failure = `Plugin job recovery failed: ${String(error)}`;
-							stores.jobStore.updateJob(job.id, { status: "error", error: failure, activity: "recovery failed", delivery: { kind: "failure", status: "pending" } });
-							void deliverJobResult(buildJobFailureSteer(job, failure));
-						});
-						continue;
-					}
-					// The sub-agent loop itself died with the process: re-spawn.
-					if (!s.respawn) continue;
-					stores.jobStore.updateJob(job.id, { activity: "recovering: re-running" });
-					s.respawn(job.id);
+		// One jobs-directory pass; a job whose chat is gone is skipped.
+		const chats = new Set(stores.chatStore.listChats().map((chat) => chat.id));
+		for (const job of stores.jobStore.listAllJobs()) {
+			if (!chats.has(job.chatId)) continue;
+			if (isJobLive(job.id)) continue; // never re-run beside live computation
+			if (isTurnRunning(job.chatId)) continue;
+			const recovered = normalizeLegacyResult(job);
+			if (recovered.delivery?.status === "pending") {
+				restorePendingDeliveries(job.chatId);
+				void pump(job.chatId);
+			} else if (job.status === "running" && !job.result) {
+				if (job.kind === "plugin") {
+					// Canonical task reads only; never respawn plugin tools/code.
+					if (s.recoverPlugin) void s.recoverPlugin(job).catch((error: unknown) => {
+						if (stores.jobStore.getJob(job.id)?.status !== "running") return;
+						const failure = `Plugin job recovery failed: ${String(error)}`;
+						stores.jobStore.updateJob(job.id, { status: "error", error: failure, activity: "recovery failed", delivery: { kind: "failure", status: "pending" } });
+						void deliverJobResult(buildJobFailureSteer(job, failure));
+					});
+					continue;
 				}
+				// The sub-agent loop itself died with the process: re-spawn.
+				if (!s.respawn) continue;
+				stores.jobStore.updateJob(job.id, { activity: "recovering: re-running" });
+				s.respawn(job.id);
 			}
 		}
 	} catch (err) {
@@ -746,4 +746,10 @@ export function recoverStaleJobs(): void {
 export function listJobs(chatId: string): JobRecord[] {
 	if (process.env.NODE_ENV !== "test") recoverStaleJobs();
 	return stores.jobStore.listJobs(chatId);
+}
+
+/** Every job across chats in one directory pass (+ lazy recovery). */
+export function listAllJobs(): JobRecord[] {
+	if (process.env.NODE_ENV !== "test") recoverStaleJobs();
+	return stores.jobStore.listAllJobs();
 }

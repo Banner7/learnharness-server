@@ -107,8 +107,8 @@ export const GRAPH_FORMAT_FILE = path.join(/* turbopackIgnore: true */ PATHS.gra
  * field) needs no migration — old records simply lack the new keys. The
  * version field is a PRIVATE schema counter for breaking shape changes
  * only (field renamed/meaning changed), unrelated to the app release
- * version. Secrets (API keys, login tokens) NEVER live here — auth.json /
- * .env.local keep that role. (The `chat` default-settings section died
+ * version. Secrets (API keys, login tokens) NEVER live here — the operator
+ * config file / .env.local keep that role. (The `chat` default-settings section died
  * with per-session models, owner 2026-09-28 — sessions own their model
  * from birth, stamped from the strong slot.)
  */
@@ -138,15 +138,16 @@ export const PROMPTS_OVERRIDE_DIR = path.join(/* turbopackIgnore: true */ DATA_R
 export const THEMES_DIR = path.join(/* turbopackIgnore: true */ DATA_ROOT, "themes");
 
 /**
- * THE AUTH/KEY STORE: provider keys in a flat {VAR: value} JSON map. The
- * server only reads it; LH_AUTH_FILE points at it (`/secrets/auth.json` in
- * the Docker image), and in dev the default is the repo-root auth.json
- * (gitignored, same pattern as .env.local). Its values are mirrored into
- * process.env with FILL-GAP precedence — real environment variables (incl.
- * .env.local in dev) always win — and the mirror is re-synced from disk on
- * each key read, so hand edits take effect without a restart
- * (src/server/keys.ts). Secrets NEVER go in settings.json.
+ * THE OPERATOR CONFIG FILE: one read-only JSON object holding provider/tool
+ * keys, custom providers and the Claude Code opt-in (schema in
+ * src/core/server-config.ts). LH_CONFIG_FILE points at it
+ * (`/secrets/config/config.json` in the Docker image); in dev the default is the
+ * repo-root config.json (gitignored, same pattern as .env.local). The app
+ * never writes it and re-reads it when it changes (src/store/config.ts).
+ * Keys are mirrored into process.env with FILL-GAP precedence — real
+ * environment variables always win (src/server/keys.ts). Secrets NEVER go
+ * in settings.json.
  */
-export const AUTH_FILE = process.env.LH_AUTH_FILE
-	? path.resolve(/* turbopackIgnore: true */ process.env.LH_AUTH_FILE)
-	: path.join(/* turbopackIgnore: true */ ROOT, "auth.json");
+export const CONFIG_FILE = process.env.LH_CONFIG_FILE
+	? path.resolve(/* turbopackIgnore: true */ process.env.LH_CONFIG_FILE)
+	: path.join(/* turbopackIgnore: true */ ROOT, "config.json");

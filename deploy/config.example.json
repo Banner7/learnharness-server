@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "keys": {
+    "OPENROUTER_API_KEY": "",
+    "TAVILY_API_KEY": "",
+    "DEEPGRAM_API_KEY": "",
+    "CLAUDE_CODE_OAUTH_TOKEN": ""
+  },
+  "customProviders": [],
+  "claudeCode": { "enabled": false }
+}

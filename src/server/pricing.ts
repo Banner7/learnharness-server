@@ -9,17 +9,28 @@ import { CLAUDE_CODE_PROVIDER } from "../core/contracts/claude-code.ts";
 import type { CallUsage, ChatRecord, JobRecord, TurnUsage } from "../core/contracts.ts";
 import { sessionCost as foldSessionCost, turnCost as foldTurnCost, jobCost as foldJobCost } from "../core/prices.ts";
 
-function catalogModel(id: string) {
+function catalogModel(id: string, custom: ReadonlySet<string>) {
 	const colon = id.indexOf(":");
 	// Native CLI routing determines billing, and configured endpoints carry
 	// zero-rate placeholders: never turn either into an apparent $0 estimate.
 	const provider = id.slice(0, colon);
-	if (colon < 0 || provider === CLAUDE_CODE_PROVIDER || customProviderIds().includes(provider)) return undefined;
+	if (colon < 0 || provider === CLAUDE_CODE_PROVIDER || custom.has(provider)) return undefined;
 	return piModels().getModel(id.slice(0, colon), id.slice(colon + 1));
 }
 
+/** A pricing function with the custom-provider ids read once: folds over
+ *  many calls (a session, the graph's cost summary) use one of these. */
+export function costFunction(): (call: Partial<CallUsage>, modelId: string) => number | null {
+	const custom = new Set(customProviderIds());
+	return (call, modelId) => priceCall(call, modelId, custom);
+}
+
 export function callCost(call: Partial<CallUsage>, modelId: string): number | null {
-	const model = catalogModel(modelId);
+	return costFunction()(call, modelId);
+}
+
+function priceCall(call: Partial<CallUsage>, modelId: string, custom: ReadonlySet<string>): number | null {
+	const model = catalogModel(modelId, custom);
 	if (!model || call.inputTokens === undefined || call.outputTokens === undefined) return null;
 	const input = call.inputTokens;
 	const output = call.outputTokens;
@@ -41,15 +52,16 @@ export function callCost(call: Partial<CallUsage>, modelId: string): number | nu
 }
 
 export function turnCost(turn: TurnUsage): number | null {
-	return foldTurnCost(turn, callCost);
+	return foldTurnCost(turn, costFunction());
 }
 export function sessionCost(record: Pick<ChatRecord, "turns">) {
-	return foldSessionCost(record, callCost);
+	return foldSessionCost(record, costFunction());
 }
 export function jobCost(job: Pick<JobRecord, "usage">): number | null {
 	const usage = job.usage;
 	if (!usage || usage.steps < 1) return null;
 	const hasCalls = usage.calls?.length === usage.steps;
-	if (!hasCalls && usage.steps > 1 && catalogModel(usage.model)?.cost.tiers?.length) return null;
-	return foldJobCost(job, callCost);
+	const custom = new Set(customProviderIds());
+	if (!hasCalls && usage.steps > 1 && catalogModel(usage.model, custom)?.cost.tiers?.length) return null;
+	return foldJobCost(job, (call, modelId) => priceCall(call, modelId, custom));
 }

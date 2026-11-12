@@ -13,7 +13,7 @@ import type { QuestionTypeResolver } from "../src/server/plugin-questions.ts";
 // route/barrels, with a local resolver only; no plugin startup or network.
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "lh-plugin-dismiss-route-"));
 process.env.LH_DATA_DIR = path.join(root, "data");
-process.env.LH_AUTH_FILE = path.join(root, "auth.json");
+process.env.LH_CONFIG_FILE = path.join(root, "config.json");
 process.env.OPENROUTER_API_KEY = "isolated-key-presence-only";
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async () => { throw new Error("Unexpected network in dismissal route tests"); };

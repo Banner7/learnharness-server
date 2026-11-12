@@ -19,8 +19,8 @@ const b = path.join(root, "mount", "StudyB");
 const outside = path.join(home, "Outside");
 const auth = path.join(root, "private", "keys.json");
 const data = path.join(root, "private", "data");
-const prior = Object.fromEntries(["HOME", "USERPROFILE", "LH_AUTH_FILE", "LH_DATA_DIR"].map((key) => [key, process.env[key]]));
-Object.assign(process.env, { HOME: home, USERPROFILE: home, LH_AUTH_FILE: auth, LH_DATA_DIR: data });
+const prior = Object.fromEntries(["HOME", "USERPROFILE", "LH_CONFIG_FILE", "LH_DATA_DIR"].map((key) => [key, process.env[key]]));
+Object.assign(process.env, { HOME: home, USERPROFILE: home, LH_CONFIG_FILE: auth, LH_DATA_DIR: data });
 async function write(file: string, text: string | Buffer): Promise<void> { await fs.mkdir(path.dirname(file), { recursive: true }); await fs.writeFile(file, text); }
 const notesA = path.join(a, "notes.md");
 const notesB = path.join(b, "notes.md");

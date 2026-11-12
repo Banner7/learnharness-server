@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, it } from "node:test";
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "lh-import-paths-"));
-process.env.LH_DATA_DIR = root; process.env.LH_AUTH_FILE = path.join(root, "auth.json"); fs.writeFileSync(process.env.LH_AUTH_FILE, "{}");
+process.env.LH_DATA_DIR = root; process.env.LH_CONFIG_FILE = path.join(root, "config.json"); fs.writeFileSync(process.env.LH_CONFIG_FILE, "{}");
 after(() => fs.rmSync(root, { recursive: true, force: true }));
 const { POST } = await import("../app/api/graph/import/route.ts");
 const { extraction, stores } = await import("../src/server/index.ts");

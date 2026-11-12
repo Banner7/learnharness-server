@@ -171,15 +171,10 @@ export const graphStore: GraphStore = {
 	 *  also keeps its first-seen `importedAt`: re-extracting an edit must not
 	 *  redate it. */
 	upsertSource(source: NotesSource): void {
-		const all = readSourceMap();
-		const prev = all[source.id];
-		const vault = source.vault ?? prev?.vault;
-		// A vault note's filePath always follows its vault path: an extraction
-		// that read the file before a rename must not write the old path back.
-		all[source.id] = prev
-			? { ...source, extractions: prev.extractions, ...(vault ? { vault, filePath: vault.path, importedAt: prev.importedAt } : {}) }
-			: source;
-		writeSourceMap(all);
+		upsertSourceBatch([source]);
+	},
+	upsertSources(sources: readonly NotesSource[]): void {
+		upsertSourceBatch(sources);
 	},
 	readSources(): NotesSource[] {
 		return Object.values(readSourceMap());
@@ -277,6 +272,24 @@ const isPosition = (v: unknown): v is Position =>
 
 /** sources.json — { id: NotesSource }. Read-modify-write, NOT append-only:
  *  the usage log lives inside the record (like a chat's JSON file). */
+/** The upsert merge rule, batched: one read, one write (a vault scan can
+ *  touch every note at once). Keeps the existing record's usage log, and its
+ *  vault sync state unless the caller sends one. */
+function upsertSourceBatch(sources: readonly NotesSource[]): void {
+	if (sources.length === 0) return;
+	const all = readSourceMap();
+	for (const source of sources) {
+		const prev = all[source.id];
+		const vault = source.vault ?? prev?.vault;
+		// A vault note's filePath always follows its vault path: an extraction
+		// that read the file before a rename must not write the old path back.
+		all[source.id] = prev
+			? { ...source, extractions: prev.extractions, ...(vault ? { vault, filePath: vault.path, importedAt: prev.importedAt } : {}) }
+			: source;
+	}
+	writeSourceMap(all);
+}
+
 function readSourceMap(): Record<string, NotesSource> {
 	assertGraphFormat(); // honest refusal on a newer-stamped data dir
 	let raw: string;

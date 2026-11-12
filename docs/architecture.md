@@ -154,7 +154,7 @@ Extraction is the construction writer, not the only mutation: source/session/nod
 | Preferences and prompt overrides | `settings.json`, `prompts/` |
 | Core plugin writable records | `core-plugin-data/<id>/` |
 | Community plugin code and writable records | `plugins/<id>/{dist,data}/` |
-| Keys and custom-endpoint binding | Separate `auth.json`, selected by `LH_AUTH_FILE` |
+| Keys, custom providers, Claude Code opt-in | Separate read-only `config.json`, selected by `LH_CONFIG_FILE` |
 
 Adapters use synchronous filesystem operations. JSONL reads skip corrupt/invalid lines; graph derivation merges repeated assertions. Some replacements use temp-file rename, but ordinary whole-file writes are not database transactions. Same-event-loop serialization is not cross-process locking or crash atomicity. Use **one server owner per data/auth profile**.
 
@@ -168,7 +168,7 @@ LearnHarness runs as a browser-only Next.js server (standalone `server.js` in th
 
 [`models.ts`](../src/agent/models.ts) composes Pi providers and app bridges. Strong/Cheap/Vision slots have no factory model pins. Sessions retain explicit choices; background roles resolve independently. Missing configuration/readiness refuses rather than silently choosing another provider.
 
-Credentials are read-only: environment values override the server-managed `auth.json`, and the app never writes keys. [Claude Code](claude-code.md) retains native CLI authentication/routing but bridges LearnHarness tools; [custom providers](custom-providers.md) come from `LH_CUSTOM_PROVIDERS` and resolve `{"env"}` secrets per request. Neither route has inferred zero-dollar pricing. [Accounting](compaction-accounting.md) owns context/cache/cost semantics.
+Credentials are read-only: environment values override the operator config file's `keys`, and the app never writes that file. [Claude Code](claude-code.md) retains native CLI authentication/routing but bridges LearnHarness tools; [custom providers](custom-providers.md) come from the config file's `customProviders` and resolve `{"env"}` secrets per request. Neither route has inferred zero-dollar pricing. [Accounting](compaction-accounting.md) owns context/cache/cost semantics.
 
 ### File access and external services
 

@@ -13,7 +13,7 @@
  * What it does: spawns .next/standalone/server.js with host Node on
  * 127.0.0.1 on a kernel-assigned
  * free port, NODE_ENV=production, a THROWAWAY LH_DATA_DIR and an EMPTY
- * LH_AUTH_FILE under os.tmpdir() (no real keys or data ever touch it) —
+ * LH_CONFIG_FILE under os.tmpdir() (no real keys or data ever touch it) —
  * polls GET / until 200, then probes the GET-only API surface (graph /
  * models / settings — no side effects). Any non-200, an early server
  * exit, or a 30s boot timeout fails the gate and prints the server's own
@@ -107,8 +107,8 @@ async function main() {
 	};
 	const home = fs.mkdtempSync(path.join(os.tmpdir(), "lh-smoke-"));
 	const dataDir = path.join(home, "data");
-	const authFile = path.join(home, "auth.json");
-	fs.writeFileSync(authFile, "{}\n", "utf-8");
+	const configFile = path.join(home, "config.json");
+	fs.writeFileSync(configFile, "{}\n", "utf-8");
 	createPluginSmokeFixture(home);
 	const imports = [];
 	if (ISOLATED_MODE) {
@@ -146,7 +146,7 @@ registerHooks({resolve(specifier,context,next){ const result=next(specifier,cont
 			PORT: String(port),
 			HOSTNAME: "127.0.0.1",
 			LH_DATA_DIR: dataDir,
-			LH_AUTH_FILE: authFile,
+			LH_CONFIG_FILE: configFile,
 			LH_WEB_ORIGIN: url,
 			LH_WEB_ACCESS_TOKEN: accessToken,
 		},

@@ -8,27 +8,29 @@
 services:
   learnharness:
     build: .
-    image: learnharness:0.1.1
+    image: learnharness:0.2.0
     init: true
     restart: unless-stopped
     ports:
       # Loopback-only: only a proxy/Tailscale Serve on this host may reach it.
       - "127.0.0.1:${LH_HOST_PORT:-3000}:3000"
     env_file:
-      # Holds LH_WEB_ORIGIN, LH_WEB_ACCESS_TOKEN, LH_TAILSCALE_USERS,
-      # LH_CUSTOM_PROVIDERS, provider API keys, CLAUDE_CODE_OAUTH_TOKEN, etc.
+      # Holds LH_WEB_ORIGIN, LH_WEB_ACCESS_TOKEN, LH_TAILSCALE_USERS and
+      # other LH_* settings. Keys may live here too (env wins over config/config.json).
       - ./secrets/runtime.env
     environment:
       LH_DATA_DIR: /data
-      LH_AUTH_FILE: /secrets/auth.json
+      LH_CONFIG_FILE: /secrets/config/config.json
       HOSTNAME: 0.0.0.0
       PORT: "3000"
     volumes:
       - ./data:/data
-      # Optional provider key map, read-only. Omit this line (and the file)
-      # when every key lives in secrets/runtime.env. runtime.env itself is
-      # read by compose via env_file and is never mounted into the container.
-      - ./secrets/auth.json:/secrets/auth.json:ro
+      # Operator config (keys, custom providers, Claude Code), read-only.
+      # A directory holding ONLY config.json is mounted, so rename-style
+      # saves (editors, sed -i, atomic writes) are seen without a restart.
+      # Never put runtime.env in it: compose reads that via env_file and it
+      # is never mounted. Omit this line when everything lives in runtime.env.
+      - ./secrets/config:/secrets/config:ro
       # Claude Code CLI state (CLAUDE_CONFIG_DIR); must be owned by uid 1000.
       - ./claude:/claude
       # Optional vault library: a Markdown notes folder, read-only. Set
@@ -44,7 +46,8 @@ services:
           "-e",
           'fetch("http://127.0.0.1:"+(process.env.PORT||"3000")+"/").then(()=>process.exit(0)).catch(()=>process.exit(1))',
         ]
-      interval: 30s
+      # A Node process per probe: a single-owner box needs no 30 s resolution.
+      interval: 120s
       timeout: 5s
       retries: 3
       start_period: 30s

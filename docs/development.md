@@ -28,7 +28,7 @@ export LH_WEB_ACCESS_TOKEN=$(openssl rand -hex 32)
 npm run dev            # sign in as learnharness with the token
 ```
 
-No model key is needed to open the UI. Provide credentials through environment variables or `auth.json`, then choose the Strong/Cheap/Vision slots before model-driven use; there are no factory model selections.
+No model key is needed to open the UI. Provide credentials through environment variables or the config file's `keys`, then choose the Strong/Cheap/Vision slots before model-driven use; there are no factory model selections.
 
 ```sh
 npm run build          # stage core plugins, then Next production/standalone build
@@ -46,11 +46,10 @@ Nonsecret settings are deltas in `<data root>/settings.json`; absent values reso
 | Variable | Purpose |
 | --- | --- |
 | `LH_DATA_DIR` | Mutable chats/jobs/graph/settings/prompts; default repo `data/`. |
-| `LH_AUTH_FILE` | Read-only flat `{"VAR": "value"}` key map; default repo-root `auth.json`, outside `data/`. The app never writes it. |
+| `LH_CONFIG_FILE` | Read-only operator config file (`keys`, `customProviders`, `claudeCode`; schema in `src/core/server-config.ts`); default repo-root `config.json`, outside `data/`. Re-read when it changes; the app never writes it. See [deployment](../deploy/README.md#config-file). |
 | `LH_WEB_ORIGIN` | Required. Exact origin of the app; HTTPS, or HTTP for `localhost`/`127.0.0.1`/`[::1]`. |
 | `LH_WEB_ACCESS_TOKEN` | Required. 64 hex characters; Basic auth password for user `learnharness`. |
 | `LH_TAILSCALE_USERS` | Optional comma-separated Tailscale logins admitted without a password. |
-| `LH_CUSTOM_PROVIDERS` | Optional JSON array of OpenAI-compatible providers; see [custom providers](custom-providers.md). |
 | `LH_VAULT_DIR` | Optional vault library: a folder of Markdown notes the server follows read-only (30 s poll; Settings → Library for Sync now, auto-extract, skip list, missing-note review). Unset = off. |
 | `LH_VAULT_EXCLUDE` | Optional comma-separated skip patterns (`folder/`, `exact/path.md`, globs with `*`/`**`) seeding the Library skip list until one is saved. Dot entries are always skipped. |
 | Provider API-key variables | Optional, selected-provider dependent; UI names are in `src/core/auth-keys.ts`. |
@@ -58,7 +57,7 @@ Nonsecret settings are deltas in `<data root>/settings.json`; absent values reso
 | `DEEPGRAM_API_KEY` | Optional dictation token minting. |
 | `CHROME_PATH` | Chrome/Chromium executable for demo verification. No extra Chromium is downloaded. |
 
-Ordinary Next development can read `.env.local`. Real environment keys take precedence over `auth.json`. That file is restrictive-permission plaintext, not an encrypted vault.
+Ordinary Next development can read `.env.local`. Real environment keys take precedence over the config file's `keys`. That file is restrictive-permission plaintext, not an encrypted vault.
 
 Provider-specific setup and limitations: [Claude Code](claude-code.md), [custom providers](custom-providers.md), [context/cost accounting](compaction-accounting.md).
 
@@ -66,11 +65,11 @@ The gate is a single-owner login, not multi-user hosting. Keep the listener on l
 
 ## Safe local work
 
-Use a disposable data root and a separate empty `{}` auth file:
+Use a disposable data root and a separate config file (a missing file is an empty config):
 
 ```sh
 LH_DATA_DIR=/absolute/path/to/scratch/data \
-LH_AUTH_FILE=/absolute/path/to/scratch/auth.json \
+LH_CONFIG_FILE=/absolute/path/to/scratch/config.json \
 LH_WEB_ORIGIN=http://localhost:3001 \
 LH_WEB_ACCESS_TOKEN=$(openssl rand -hex 32) \
 npm run dev -- --port 3001

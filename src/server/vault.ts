@@ -49,6 +49,12 @@ export function libraryPreferences(): { autoExtract: boolean; exclude: string[] 
  * its writes run in one synchronous stretch so no extraction write
  * interleaves between reading and writing the source map.
  */
+/** Content hashes from earlier scans, keyed by vault-relative path. A note
+ *  whose size, mtime and inode are unchanged keeps its hash without being
+ *  read again; entries not seen in a scan are pruned, so the map stays
+ *  bounded by the vault. */
+const hashCache = new Map<string, { size: number; mtimeMs: number; ino: number; hash: string }>();
+
 async function walk(root: string, dir: string, exclude: readonly string[], out: VaultFile[]): Promise<void> {
 	let entries: fs.Dirent[];
 	try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); }
@@ -61,15 +67,35 @@ async function walk(root: string, dir: string, exclude: readonly string[], out: 
 			if (!vaultPathExcluded(`${rel}/`, exclude)) await walk(root, full, exclude, out);
 		} else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md") && !vaultPathExcluded(rel, exclude)) {
 			let hash: string;
+			// Unchanged note: one lstat (never follows a symlink) and the cached
+			// hash. Anything else takes the descriptor path below.
+			const known = hashCache.get(rel);
+			if (known) {
+				try {
+					const st = await fs.promises.lstat(full);
+					if (st.isFile() && st.size === known.size && st.mtimeMs === known.mtimeMs && st.ino === known.ino) {
+						out.push({ path: rel, hash: known.hash });
+						continue;
+					}
+				} catch { /* gone or unreadable: the open below decides */ }
+			}
 			// A file deleted between readdir and read is simply absent this scan.
 			// A note over the size cap stays present (never missing), but is not
 			// read: its size and mtime stand in for the content hash, so an edit
 			// still marks it changed, and extraction refuses it.
+			// Stat and read the opened descriptor: an entry swapped for a
+			// symlink after readdir is refused (O_NOFOLLOW), and a FIFO cannot
+			// block the scan (O_NONBLOCK, then the regular-file check).
 			try {
-				const stat = await fs.promises.stat(full);
-				hash = hashVaultNote(stat.size > MAX_VAULT_NOTE_BYTES
-					? `oversize:${stat.size}:${stat.mtimeMs}`
-					: await fs.promises.readFile(full));
+				const handle = await fs.promises.open(full, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+				try {
+					const stat = await handle.stat();
+					if (!stat.isFile()) continue;
+					hash = hashVaultNote(stat.size > MAX_VAULT_NOTE_BYTES
+						? `oversize:${stat.size}:${stat.mtimeMs}`
+						: await handle.readFile());
+					hashCache.set(rel, { size: stat.size, mtimeMs: stat.mtimeMs, ino: stat.ino, hash });
+				} finally { await handle.close(); }
 			} catch { continue; }
 			out.push({ path: rel, hash });
 		}
@@ -102,12 +128,16 @@ async function scanOnce(root: string): Promise<VaultReconcile | null> {
 		const exclude = libraryPreferences().exclude;
 		const files: VaultFile[] = [];
 		await walk(root, root, exclude, files);
+		const seen = new Set(files.map((file) => file.path));
+		for (const rel of hashCache.keys()) if (!seen.has(rel)) hashCache.delete(rel);
 		files.sort((a, b) => a.path.localeCompare(b.path));
 		const absent = await goneSkippedNotes(root, exclude);
+		// Read again after the awaits above: from here to the write is one
+		// synchronous stretch, so no extraction write can slip in between.
 		const before = new Map(stores.graphStore.readSources().map((s) => [s.id, s]));
 		const result = reconcileVault([...before.values()], files, new Date().toISOString(),
 			() => `src_${randomBytes(6).toString("hex")}`, exclude, absent);
-		for (const source of result.upserts) stores.graphStore.upsertSource(source);
+		stores.graphStore.upsertSources(result.upserts);
 		if (result.upserts.length > 0) {
 			console.info(`[vault] ${result.created} new, ${result.renamed} moved, ${result.changed} edited, ${result.missing} missing, ${result.restored} back`);
 			// New notes get folders mirroring the vault; moved notes follow.

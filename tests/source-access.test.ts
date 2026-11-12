@@ -15,8 +15,8 @@ const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "lh-sourc
 const home = path.join(root, "home");
 const auth = path.join(root, "private", "custom-keys.json");
 const data = path.join(root, "private", "data");
-const previous = Object.fromEntries(["HOME", "USERPROFILE", "LH_AUTH_FILE", "LH_DATA_DIR"].map((key) => [key, process.env[key]]));
-Object.assign(process.env, { HOME: home, USERPROFILE: home, LH_AUTH_FILE: auth, LH_DATA_DIR: data });
+const previous = Object.fromEntries(["HOME", "USERPROFILE", "LH_CONFIG_FILE", "LH_DATA_DIR"].map((key) => [key, process.env[key]]));
+Object.assign(process.env, { HOME: home, USERPROFILE: home, LH_CONFIG_FILE: auth, LH_DATA_DIR: data });
 after(async () => {
 	for (const [key, value] of Object.entries(previous)) {
 		if (value === undefined) delete process.env[key]; else process.env[key] = value;
@@ -369,7 +369,7 @@ describe("source access: path spelling", () => {
 
 	it("Windows drive/UNC namespaces and credential/dotenv streams cannot bypass matching", { skip: process.platform !== "win32" }, () => {
 		for (const winHome of ["C:\\Users\\Learner", "\\\\server\\share\\Learner"]) {
-			const winAuth = path.join(winHome, "app", "auth.json");
+			const winAuth = path.join(winHome, "app", "config.json");
 			const prefix = winHome.startsWith("\\\\") ? `\\\\?\\UNC\\${winHome.slice(2)}` : `\\\\?\\${winHome}`;
 			assert.equal(isSensitivePath(path.join(prefix, ".ssh", "key"), winHome, winAuth), true);
 			assert.equal(isSensitivePath(`${winAuth}:stream`, winHome, winAuth), true);

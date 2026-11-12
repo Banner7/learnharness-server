@@ -23,6 +23,8 @@ import type { PiEngine } from "../src/agent/models.ts";
 // Opt-in writes must not race another test process's settings record.
 const testData = mkdtempSync(join(tmpdir(), "lh-cli-harness-data-"));
 process.env.LH_DATA_DIR = testData;
+process.env.LH_CONFIG_FILE = join(testData, "config.json");
+const { setClaudeCodeEnabled } = await import("./helpers/server-config.ts");
 after(() => rmSync(testData, { recursive: true, force: true }));
 const { PATHS, SETTINGS_FILE } = await import("../config.ts");
 const { readSettings, writeSettings } = await import("../src/store/settings.ts");
@@ -68,9 +70,8 @@ function toAskScenario(): string[] {
 }
 
 function createFakeRun(t: TestContext, scenarios: string[][]): FakeRun {
-	const settings = readSettings();
-	writeSettings({ ...(settings ?? { version: 1 }), claudeCode: { enabled: true } });
-	t.after(() => { if (settings) writeSettings(settings); else rmSync(SETTINGS_FILE, { force: true }); });
+	setClaudeCodeEnabled(true);
+	t.after(() => setClaudeCodeEnabled(false));
 	const dir = mkdtempSync(join(tmpdir(), "claude-code-harness-"));
 	t.after(() => rmSync(dir, { recursive: true, force: true }));
 	// Satisfy the real presence gate; this marker is NEVER executed. All work
@@ -168,12 +169,12 @@ async function waitForExit(child: ChildProcessWithoutNullStreams): Promise<void>
 test("disabled opt-in refuses a saved CLI chat before write-ahead, liveness, or agent creation", async (t) => {
 	const fakeRun = createFakeRun(t, [toAskScenario()]);
 	const chatId = createClaudeCodeChat(t);
-	writeSettings({ ...(readSettings() ?? { version: 1 }), claudeCode: { enabled: false } });
+	setClaudeCodeEnabled(false);
 	const before = chatStore.getChat(chatId)!.messages;
 	const response = await handleChatRequest(new Request("http://test/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({ chatId, input: { type: "text", text: "must not start" } }) }), () => assert.fail("disabled work must not build an agent"));
 	assert.equal(response.status, 503);
-	assert.match((await response.json()).error, /Enable and set it up in Settings/);
+	assert.match((await response.json()).error, /Enable it in the server config file/);
 	assert.equal(isTurnRunning(chatId), false); assert.equal(fakeRun.children.length, 0);
 	assert.deepEqual(chatStore.getChat(chatId)!.messages, before);
 	assert.deepEqual(chatStore.getChat(chatId)!.settings?.model, { provider: "claude-code", id: "sonnet" });
@@ -198,11 +199,10 @@ test("switching off blocks future requests but does not interrupt an already adm
 	const child = await checkpoint;
 	const handle = runningTurn(chatId); assert(handle);
 	const finished = new Response(handle.subscribe()).text();
-	writeSettings({ ...(readSettings() ?? { version: 1 }), claudeCode: { enabled: false } });
+	setClaudeCodeEnabled(false);
 	assert.equal(child.signalCode, null, "opt-out must not kill an already running process");
 	child.send("continue"); await finished;
 	assert(getLastAssistantText(chatId).length > 0, "the admitted turn completes normally");
-	assert.equal(readSettings()?.claudeCode?.enabled, false);
 	await waitForExit(child);
 });
 

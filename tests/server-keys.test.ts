@@ -23,25 +23,25 @@ for (const varName of [
 }
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "lh-server-keys-"));
-const AUTH = path.join(TMP, "auth.json");
-process.env.LH_AUTH_FILE = AUTH;
+const AUTH = path.join(TMP, "config.json");
+process.env.LH_CONFIG_FILE = AUTH;
 
 // Existing file credentials: an env-shadowed provider and an opaque var.
 fs.writeFileSync(
 	AUTH,
-	JSON.stringify({
+	JSON.stringify({ keys: {
 		OPENROUTER_API_KEY: "sk-or-v1-filefilefile",
 		FUTURE_PLANS_TOKEN: "opaque-plans-token",
-	}),
+	} }),
 );
 // Real environment values are present before importing the credential seam.
 process.env.OPENROUTER_API_KEY = "sk-or-v1-envvalue99";
 
 // Import AFTER env setup so module initialization fills only unset values.
-const { keyValue } = await import(
+const { keyValue, providerKeyPresent } = await import(
 	"../src/server/keys.ts"
 );
-const { authStore } = await import("../src/store/auth.ts");
+const { configStore } = await import("../src/store/config.ts");
 
 const ENV_OWNED = "sk-or-v1-envvalue99";
 
@@ -55,7 +55,7 @@ after(() => {
 describe("boot fill-gap + precedence", () => {
 	it("env-owned var wins and the file copy is untouched", () => {
 		assert.equal(process.env.OPENROUTER_API_KEY, ENV_OWNED);
-		assert.equal(authStore.authVars().OPENROUTER_API_KEY, "sk-or-v1-filefilefile", "file copy untouched");
+		assert.equal(configStore.read().config.keys?.OPENROUTER_API_KEY, "sk-or-v1-filefilefile", "file copy untouched");
 		assert.equal(externalCliEnv().OPENROUTER_API_KEY, undefined, "external CLIs get an allowlisted environment, not provider keys");
 	});
 
@@ -72,3 +72,21 @@ describe("boot fill-gap + precedence", () => {
 });
 
 
+
+describe("retired provider ids", () => {
+	it("are never present, so admission refuses them instead of failing in the catalog", () => {
+		for (const id of ["chatgpt", "github-copilot-subscription", "xai-subscription", "custom"]) assert.equal(providerKeyPresent(id), false, id);
+		assert.equal(providerKeyPresent("amazon-bedrock"), true, "registered providers without a plain key stay present");
+	});
+});
+
+describe("key sync fast path", () => {
+	it("still re-syncs after a real-env edit between lookups", () => {
+		assert.equal(keyValue("OPENROUTER_API_KEY"), ENV_OWNED);
+		process.env.OPENROUTER_API_KEY = "sk-or-v1-envedited00";
+		assert.equal(keyValue("OPENROUTER_API_KEY"), "sk-or-v1-envedited00", "real env still wins after an edit");
+		delete process.env.OPENROUTER_API_KEY;
+		assert.equal(keyValue("OPENROUTER_API_KEY"), "sk-or-v1-filefilefile", "unsetting real env falls back to the config file");
+		process.env.OPENROUTER_API_KEY = ENV_OWNED;
+	});
+});

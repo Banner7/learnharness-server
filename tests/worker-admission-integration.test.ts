@@ -15,12 +15,12 @@ const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "lh-worker-admission-integ
 const originalEnv = process.env;
 const originalFetch = globalThis.fetch;
 fs.mkdirSync(path.join(scratch, "home"));
-fs.writeFileSync(path.join(scratch, "auth.json"), "{}");
+fs.writeFileSync(path.join(scratch, "config.json"), "{}");
 process.env = {
 	...(originalEnv.NODE_TEST_CONTEXT ? { NODE_TEST_CONTEXT: originalEnv.NODE_TEST_CONTEXT } : {}),
 	...(originalEnv.NODE_OPTIONS ? { NODE_OPTIONS: originalEnv.NODE_OPTIONS } : {}),
 	NODE_ENV: "test", HOME: path.join(scratch, "home"),
-	LH_DATA_DIR: path.join(scratch, "data"), LH_AUTH_FILE: path.join(scratch, "auth.json"),
+	LH_DATA_DIR: path.join(scratch, "data"), LH_CONFIG_FILE: path.join(scratch, "config.json"),
 };
 globalThis.fetch = async () => { throw new Error("CLOSED: unexpected network request"); };
 const { configureWorkerRequestAdmission } = await import("../src/agent/worker-request-admission.ts");
@@ -83,6 +83,7 @@ function memoryLedgers(): GraphStore {
 		appendChain: (value) => { chains.push(value); }, readChains: () => structuredClone(chains),
 		appendCoverage: (value) => { coverage.push(value); }, readCoverage: () => structuredClone(coverage),
 		appendCheckpoint: (value) => { checkpoints.push(value); }, readCheckpoints: () => structuredClone(checkpoints),
+		upsertSources(list) { for (const value of list) this.upsertSource(value); },
 		upsertSource: (value) => { sources.set(value.id, { ...value, extractions: sources.get(value.id)?.extractions ?? [] }); },
 		readSources: () => structuredClone([...sources.values()]),
 		deleteSources: (ids) => [...ids].reduce((n, id) => n + Number(sources.delete(id)), 0),

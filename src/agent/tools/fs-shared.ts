@@ -2,8 +2,8 @@ import * as fsSync from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { AUTH_FILE } from "../../../config.ts";
-import { globToRegex } from "../../core/glob.ts";
+import { CONFIG_FILE } from "../../../config.ts";
+import { globMatcher } from "../../core/glob.ts";
 import { comparisonPath, guardSourcePath, isWithin, realSourcePath as realOrMissing, resolvePolicy, type ResolvedFileAccessPolicy } from "./file-access.ts";
 
 /**
@@ -87,20 +87,23 @@ const SENSITIVE_HOME_PATHS = [
 /** Templates are deliberately included: their names do not guarantee safe contents. */
 const ENV_FILE = /^\.env(\..*)?$/i;
 const SUBSCRIPTION_FILES = ["chatgpt-credentials.json", "github-copilot-credentials.json", "xai-credentials.json"];
-// Upstream's subscription sign-in wrote these beside auth.json. This build never
-// writes them, but a copied data directory can still hold them: keep them unreadable.
+// Upstream's subscription sign-in wrote these beside auth.json, and 0.1.x read
+// keys from auth.json. This build reads neither, but a migrated secrets
+// directory can still hold them beside the config file: keep them unreadable.
 const CREDENTIAL_TEMP = /^(?:\.auth\.json\.tmp-\d+|(?:chatgpt|github-copilot|xai)-credentials\.json\.[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tmp)$/i;
 const ATOMIC_TEMP_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function credentialFiles(authFile: string): string[] {
-	return [authFile, ...SUBSCRIPTION_FILES.map((name) => path.join(/* turbopackIgnore: true */ path.dirname(authFile), name))];
+const LEGACY_CREDENTIAL_FILES = ["auth.json", ...SUBSCRIPTION_FILES];
+
+function credentialFiles(configFile: string): string[] {
+	return [configFile, ...LEGACY_CREDENTIAL_FILES.map((name) => path.join(/* turbopackIgnore: true */ path.dirname(configFile), name))];
 }
 
-function isCredentialTemp(absolute: string, directory: string, authBasename: string): boolean {
+function isCredentialTemp(absolute: string, directory: string, configBasename: string): boolean {
 	const file = comparisonPath(absolute);
 	if (path.relative(comparisonPath(directory), path.dirname(file)) !== "") return false;
 	const name = path.basename(file);
-	const prefix = `${authBasename}.tmp-`;
+	const prefix = `${configBasename}.tmp-`;
 	return CREDENTIAL_TEMP.test(name) ||
 		(name.toLowerCase().startsWith(prefix.toLowerCase()) && ATOMIC_TEMP_UUID.test(name.slice(prefix.length)));
 }
@@ -108,7 +111,8 @@ function isCredentialTemp(absolute: string, directory: string, authBasename: str
 /** App-private directories denied whole: the Claude CLI config dir, and
  *  (on Linux) /proc and /sys, which expose the server process's environment
  *  and kernel state. Provider secrets reach the process as environment
- *  variables (never a mounted env file); auth.json itself is denied below. */
+ *  variables (never a mounted env file); the config file itself is denied
+ *  below, by name and by realpath. */
 function protectedDirectories(): string[] {
 	const dirs: string[] = [];
 	if (process.env.CLAUDE_CONFIG_DIR) dirs.push(path.resolve(/* turbopackIgnore: true */ process.env.CLAUDE_CONFIG_DIR));
@@ -119,13 +123,13 @@ function protectedDirectories(): string[] {
 /** String-only check, also usable with synthetic home/credential locations.
  *  The runtime guard below additionally resolves both sources and protected roots.
  *  Only credentials are app-private denials: learning data remains readable. */
-export function isSensitivePath(absolute: string, home: string = os.homedir(), authFile: string = AUTH_FILE): boolean {
+export function isSensitivePath(absolute: string, home: string = os.homedir(), configFile: string = CONFIG_FILE): boolean {
 	const file = comparisonPath(absolute);
 	return ENV_FILE.test(path.basename(file)) ||
 		SENSITIVE_HOME_PATHS.some((p) => isWithin(file, path.join(home, p), true)) ||
 		protectedDirectories().some((p) => isWithin(file, p)) ||
-		credentialFiles(authFile).some((p) => isWithin(file, p)) ||
-		isCredentialTemp(file, path.dirname(authFile), path.basename(comparisonPath(authFile)));
+		credentialFiles(configFile).some((p) => isWithin(file, p)) ||
+		isCredentialTemp(file, path.dirname(configFile), path.basename(comparisonPath(configFile)));
 }
 
 /** An unrelated inaccessible/broken protected root must not break ordinary
@@ -166,17 +170,17 @@ export function sensitiveHomeLocations(
 }
 
 /** One snapshot per resolution/walk, not per visited entry. Resolve protected
- *  roots too: a sensitive directory or AUTH_FILE can itself be a symlink to
+ *  roots too: a sensitive directory or CONFIG_FILE can itself be a symlink to
  *  a location outside home. Never read credential contents or app records. */
 function sourcePathCheck(home = os.homedir()): (absolute: string) => boolean {
 	const homeRoots = sensitiveHomeLocations(home).map(protectedRealPath);
-	const files = credentialFiles(AUTH_FILE).map(protectedRealPath);
+	const files = credentialFiles(CONFIG_FILE).map(protectedRealPath);
 	const dirs = protectedDirectories().map(protectedRealPath);
-	const credentialDir = protectedRealPath(path.dirname(AUTH_FILE));
+	const credentialDir = protectedRealPath(path.dirname(CONFIG_FILE));
 	return (absolute) => isSensitivePath(absolute, home) ||
 		homeRoots.some((p) => isWithin(absolute, p, true)) ||
 		dirs.some((p) => isWithin(absolute, p)) ||
-		files.some((p) => isWithin(absolute, p)) || isCredentialTemp(absolute, credentialDir, path.basename(comparisonPath(AUTH_FILE)));
+		files.some((p) => isWithin(absolute, p)) || isCredentialTemp(absolute, credentialDir, path.basename(comparisonPath(CONFIG_FILE)));
 }
 
 function checkedSourcePath(absolute: string, denied: (absolute: string) => boolean): string {
@@ -266,14 +270,14 @@ export function matchGlob(relativePath: string, pattern: string): boolean {
 	const basename = posix.split("/").pop() ?? posix;
 	for (const alt of expandBraces(pattern)) {
 		if (!alt.includes("/")) {
-			if (globToRegex(alt).test(basename)) return true;
+			if (globMatcher(alt)(basename)) return true;
 		} else {
 			let effective = alt;
 			if (!effective.startsWith("/") && !effective.startsWith("**/") && effective !== "**") {
 				effective = `**/${effective}`;
 			}
 			if (effective.startsWith("/")) effective = effective.slice(1);
-			if (globToRegex(effective).test(posix)) return true;
+			if (globMatcher(effective)(posix)) return true;
 		}
 	}
 	return false;

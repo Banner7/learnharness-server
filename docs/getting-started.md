@@ -6,9 +6,9 @@ LearnHarness Server runs in a container on a server you control; see [deploy/REA
 
 Connections are configured on the server, not in the app. **Settings → Providers** shows which credentials the server has; it cannot add or change them.
 
-- **Provider API keys:** set the provider's environment variable (for example `OPENAI_API_KEY`) or add it to the server's `auth.json`. Environment values take precedence.
-- **[Claude Code](claude-code.md):** the CLI pinned in the image, authenticated with `CLAUDE_CODE_OAUTH_TOKEN` and enabled in `data/settings.json`. Its own configuration controls routing and billing.
-- **[Custom providers](custom-providers.md):** OpenAI-compatible endpoints declared in `LH_CUSTOM_PROVIDERS`, including a local model server.
+- **Provider API keys:** set the provider's environment variable (for example `OPENAI_API_KEY`) or add it to the `keys` section of the server's config file (`LH_CONFIG_FILE`). Environment values take precedence.
+- **[Claude Code](claude-code.md):** the CLI pinned in the image, authenticated with `CLAUDE_CODE_OAUTH_TOKEN` and enabled in the server config file. Its own configuration controls routing and billing.
+- **[Custom providers](custom-providers.md):** OpenAI-compatible endpoints declared in the config file's `customProviders`, including a local model server.
 
 There are no ChatGPT, GitHub Copilot, or Grok sign-in connections.
 
@@ -58,7 +58,7 @@ The graph stores propositions and reasoning chains with source provenance, **not
 
 ## Data, privacy, and usage
 
-Chats, graph records, and settings live under the server's data directory (`LH_DATA_DIR`, `/data` in the image). Credentials live in the server environment or in `auth.json` beside it (`LH_AUTH_FILE`), which is plaintext with restrictive file permissions, not an encrypted vault. Keep these private; do not share credential files or raw debug captures in bug reports.
+Chats, graph records, and settings live under the server's data directory (`LH_DATA_DIR`, `/data` in the image). Credentials live in the server environment or in the config file beside it (`LH_CONFIG_FILE`), which is plaintext with restrictive file permissions, not an encrypted vault. Keep these private; do not share credential files or raw debug captures in bug reports.
 
 **Local storage does not mean local-only processing.** Configured models, the Claude Code CLI, web research, and dictation can receive content. A local custom model is a separate setup choice, not an offline guarantee for other enabled services.
 

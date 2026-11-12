@@ -14,11 +14,11 @@ import type { PluginWorkerActivityMetadata } from "../src/agent/plugin-workers.t
 // Isolate every application import, including catalog/auth lookups, from real data/accounts.
 const directory = mkdtempSync(join(tmpdir(), "lh-worker-activity-"));
 process.env.LH_DATA_DIR = join(directory, "data");
-process.env.LH_AUTH_FILE = join(directory, "auth.json");
+process.env.LH_CONFIG_FILE = join(directory, "config.json");
 process.env.HOME = join(directory, "home");
 process.env.PI_CODING_AGENT_DIR = join(directory, "pi");
 mkdirSync(process.env.HOME, { recursive: true });
-writeFileSync(process.env.LH_AUTH_FILE, "{}");
+writeFileSync(process.env.LH_CONFIG_FILE, "{}");
 (globalThis as Record<string, unknown>).React = React;
 after(() => rmSync(directory, { recursive: true, force: true }));
 

@@ -39,12 +39,12 @@ export { isValidSegmentPath } from "../core/prompt-segments.ts";
 export { effectivePromptSegments, allSegmentPaths, readPromptOverride } from "../agent/prompt-segments.ts";
 
 // The auth/keys composition (auth-keys wave, 2026-09-19): the curated
-// key catalog + the env-reflecting store behind GET/PUT/DELETE /api/keys.
+// key catalog + the env-reflecting store behind GET /api/keys.
 // Importing this module runs the idempotent boot fill-gap — every consumer
 // keeps its plain process.env reads (that seam is the point).
 export * from "./keys.ts";
 export * from "./search.ts";
-export { authStore } from "../store/auth.ts";
+export { configStore } from "../store/config.ts";
 export * from "./settings-body.ts";
 export { fileAccessConfigurationError } from "./file-access.ts";
 export * from "./turn-liveness.ts";
@@ -62,3 +62,4 @@ export { createPluginDocumentRoute } from "./plugin-transport.ts";
 export { pluginProblemAvailabilityOf, type ProblemTypeResolver } from "./plugin-problems.ts";
 export { pluginQuestionAvailabilityOf, reconcilePluginQuestionCompatibility, preparePluginQuestionDismissal, type QuestionTypeResolver } from "./plugin-questions.ts";
 export { claudeCodeInstallationResponse } from "./claude-code.ts";
+export { claudeCodeEnabled } from "./claude-code-config.ts";

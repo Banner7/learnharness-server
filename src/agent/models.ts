@@ -16,7 +16,7 @@ import { DEFAULT_THINKING_ORDER } from "../core/settings.ts";
 import packageMetadata from "../../package.json" with { type: "json" };
 import { createClaudeCodeProvider } from "./claude-code/provider.ts";
 import { streamClaudeCode } from "./claude-code/stream.ts";
-import { customProviders, customProviderIds, serializedCustomStream } from "./custom-providers.ts";
+import { customProviders, customProviderIds, customProvidersStamp, serializedCustomStream } from "./custom-providers.ts";
 
 /** App identity is immutable and shared by Models and every native Agent.
  * Agent's default Pi attribution otherwise overrides the Models identity. */
@@ -48,6 +48,10 @@ export interface PiEngine {
 export type { ThinkingLevel };
 
 let collection: ReturnType<typeof createModels> | undefined;
+/** The custom providers currently registered, and the config stamp they
+ *  came from: a config file edit re-registers them without a restart. */
+let customIds: string[] = [];
+let customStamp: string | undefined;
 
 /** The process-wide pi-ai Models collection — EVERY builtin provider's
  *  catalog (model slots wave, 2026-09-20): engines and the picker resolve
@@ -56,7 +60,8 @@ let collection: ReturnType<typeof createModels> | undefined;
  *  the environment (the keys seam reflects file-saved keys into env), and
  *  a provider with no key simply fails its stream with "not configured" —
  *  honest, late, and unreachable through the picker, which gates on
- *  keyPresent. LH_CUSTOM_PROVIDERS adds server-configured endpoints. */
+ *  keyPresent. The config file's customProviders add server-configured
+ *  endpoints, re-registered whenever the file changes. */
 export function piModels() {
 	if (!collection) {
 		const models = createModels({ identity: APP_IDENTITY });
@@ -69,12 +74,16 @@ export function piModels() {
 				: provider);
 		}
 		models.setProvider(createClaudeCodeProvider(streamClaudeCode));
-		for (const provider of customProviders()) {
-			// A configured id must never replace a built-in provider's routes.
-			if (models.getProvider(provider.id)) throw new Error(`Custom provider id "${provider.id}" is reserved`);
-			models.setProvider(provider);
-		}
 		collection = models;
+	}
+	const stamp = customProvidersStamp();
+	if (stamp !== customStamp) {
+		customStamp = stamp;
+		for (const id of customIds) collection.deleteProvider(id);
+		// The config parser already refuses ids reserved by built-ins.
+		const providers = customProviders();
+		for (const provider of providers) collection.setProvider(provider);
+		customIds = providers.map((provider) => provider.id);
 	}
 	return collection;
 }

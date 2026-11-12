@@ -4,11 +4,11 @@ LearnHarness can use an externally installed **Claude Code CLI** as a model prov
 
 ## Set up
 
-The Docker image includes a pinned Claude Code CLI (`/usr/local/bin/claude`) running as the image's `node` user. Enablement is out of band; there is no toggle in the app.
+The Docker image includes a pinned Claude Code CLI (`/usr/local/bin/claude`) running as the image's `node` user. Enablement is in the server's config file; there is no toggle in the app.
 
-1. Create a token with `claude setup-token` on any machine where you can sign in, and set it as `CLAUDE_CODE_OAUTH_TOKEN` in the server environment.
+1. Create a token with `claude setup-token` on any machine where you can sign in, and set it as `CLAUDE_CODE_OAUTH_TOKEN` in the server environment or in the config file's `keys`.
 2. Keep `CLAUDE_CONFIG_DIR` (default `/claude` in the image) on a volume writable by uid 1000. `DISABLE_AUTOUPDATER=1` keeps the pinned CLI from updating itself.
-3. Add `"claudeCode": {"enabled": true}` to `data/settings.json` (inside `LH_DATA_DIR`). The setting is read on every new admission, so no restart is needed. Remove it or set `false` to turn the provider off.
+3. Add `"claudeCode": {"enabled": true}` to the config file (`LH_CONFIG_FILE`, `/secrets/config/config.json` in the image; see [deployment](../deploy/README.md#config-file)). The file is re-read when it changes and the switch is checked on every new admission, so no restart is needed. Remove it or set `false` to turn the provider off.
 4. Select a Claude Code model: `opus`, `sonnet`, or `haiku`. These are CLI aliases, not pinned underlying versions.
 
 Outside the image, install and authenticate the CLI under the server's OS user and make `claude` discoverable in that user's `PATH`. **Settings → Providers** shows installation status read-only.
@@ -21,7 +21,7 @@ Install, update, sign in, and change CLI accounts externally. LearnHarness has n
 
 LearnHarness keeps control of its agent loop, tools, questions, saved history, and jobs. It supplies prompts, relevant history, and tool results to the CLI's configured service.
 
-The launcher removes credentials injected **only by LearnHarness's key store**. Original launch-environment credentials, native CLI authentication, and routing remain available and may affect billing. LearnHarness does not copy its saved API keys into this provider.
+The CLI receives an allowlisted environment: its own `CLAUDE_*`/`ANTHROPIC_*` variables, Bedrock/Vertex routing (`AWS_*`, `GOOGLE_*`, `CLOUD_ML_REGION`), locale, temp, proxy, and TLS settings from the server's launch environment, plus `CLAUDE_CODE_OAUTH_TOKEN` from the config file. Other keys from the config file, such as `ANTHROPIC_API_KEY` for LearnHarness's own Anthropic provider, are never passed. Launch-environment credentials and native CLI authentication remain available and may affect billing.
 
 Each child runs without a shell in an empty temporary working directory. LearnHarness disables built-in tools, hooks, slash commands, CLI session persistence, and permission prompts, and exposes its own declared tools through a token-protected loopback MCP bridge. Streamed tool intent is insufficient: execution requires an authenticated MCP request whose unique identity, name, and arguments match the stream. There is no stdout-only fallback.
 
@@ -51,7 +51,7 @@ Dollar costs remain **unpriced** and menus say **CLI billing**. LearnHarness doe
 
 | Symptom | Check |
 | --- | --- |
-| Model absent/unavailable | Check `claudeCode.enabled` in `data/settings.json` and executable discovery under the server's OS user/environment. |
+| Model absent/unavailable | Check `claudeCode.enabled` in the config file (and the Providers page for a config file error) and executable discovery under the server's OS user/environment. |
 | Not found, unchecked, or update required | Repair or update the executable (in the image, rebuild with a newer pinned version). The bounded version probe times out after five seconds. |
 | Meets minimum but requests fail | Check native authentication, routing, model access, and quota externally. |
 | MCP identity/admission error | Investigate installed-CLI compatibility; do not bypass the bridge's admission checks. |

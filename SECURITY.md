@@ -52,6 +52,6 @@ Out of scope:
 - bugs in third-party model or service providers themselves (report those to the provider);
 - automated scanner output without a demonstrated impact on LearnHarness.
 
-Built-in hardening: the agent's file tools refuse the credential directory (the folder holding `LH_AUTH_FILE`), the Claude Code config directory (`CLAUDE_CONFIG_DIR`), `/proc`, and `/sys`, and the Coding Questions plugin runs test programs with a minimal environment (`PATH`, `LANG`, and a temporary `HOME`/`TMPDIR`).
+Built-in hardening: the agent's file tools refuse the operator config file (`LH_CONFIG_FILE`, by name and by resolved path) and legacy credential files beside it, the Claude Code config directory (`CLAUDE_CONFIG_DIR`), `/proc`, and `/sys`, and the Coding Questions plugin runs test programs with a minimal environment (`PATH`, `LANG`, and a temporary `HOME`/`TMPDIR`).
 
-**Coding Questions is code execution.** Enabling it runs model-authored programs as the server's user, with network access. Such a program can read the server's secrets (the server process environment through `/proc`, `auth.json`, and the Claude Code config directory) and change its data. A prompt injection can trigger this. Keep the plugin disabled unless you accept that.
+**Coding Questions is code execution.** Enabling it runs model-authored programs as the server's user, with network access. Such a program can read the server's secrets (the server process environment through `/proc`, the config file, and the Claude Code config directory) and change its data. A prompt injection can trigger this. Keep the plugin disabled unless you accept that.

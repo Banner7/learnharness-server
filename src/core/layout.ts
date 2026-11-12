@@ -510,8 +510,13 @@ export function createGraphSimulation(
 	return sim;
 }
 
+/** Settle ticks when previous positions exist (cold starts use 300). */
+export const WARM_START_TICKS = 60;
+
 export interface IncrementalLayoutOptions {
-	/** Manual ticks for the settle (default 300 — d3's anneal to alphaMin). */
+	/** Manual ticks for the settle. Default: 300 (d3's anneal to alphaMin)
+	 *  on a cold start; WARM_START_TICKS when previous positions exist, since
+	 *  the anchors and their retention already hold the old layout. */
 	ticks?: number;
 	/** Per-tick anchor re-blend (default 0.85; 1 = fully pinned). */
 	anchorRetention?: number;
@@ -545,7 +550,6 @@ export function incrementalLayout(
 	previous: ReadonlyMap<string, Position>,
 	options: IncrementalLayoutOptions = {},
 ): Map<string, Position> {
-	const ticks = options.ticks ?? 300;
 	const retention = options.anchorRetention ?? ANCHOR_RETENTION;
 
 	// Anchors: the warm-start set (the previous rest state).
@@ -571,6 +575,9 @@ export function incrementalLayout(
 		cy += a.y;
 	}
 	const hasCore = anchors.size > 0;
+	// The settle runs on the server's event loop after every merge: a warm
+	// start only needs to place the new nodes and relax their neighbors.
+	const ticks = options.ticks ?? (hasCore ? WARM_START_TICKS : 300);
 	if (hasCore) {
 		cx /= anchors.size;
 		cy /= anchors.size;

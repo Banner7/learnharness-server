@@ -64,8 +64,13 @@ export function browserAccessFailure(
 	}
 
 	// Tailscale Serve deletes client-supplied Tailscale-User-* headers and sets
-	// them only for untagged tailnet users. The server must listen on loopback
-	// only, so just local processes on the Serve host could forge this header.
+	// them only for untagged tailnet users, but nothing here can tell whether a
+	// request came through Serve: ANY client that reaches this listener can
+	// send the header. The invariant LH_TAILSCALE_USERS relies on is that only
+	// the Serve proxy can reach the listener (e.g. it shares the container's
+	// network namespace). The stock image listens on 0.0.0.0, so host
+	// processes and containers on a shared Docker network can forge it; leave
+	// LH_TAILSCALE_USERS unset unless the deployment guarantees that.
 	const allowedLogins = (env.LH_TAILSCALE_USERS ?? "").split(",")
 		.map((login) => login.trim().toLowerCase()).filter(Boolean);
 	const login = headers.get("tailscale-user-login")?.trim().toLowerCase();

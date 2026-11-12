@@ -12,8 +12,8 @@ import type { ChatInput } from "../src/core/input-events.ts";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "lh-plugin-side-compaction-"));
 process.env.LH_DATA_DIR = path.join(root, "data");
-process.env.LH_AUTH_FILE = path.join(root, "auth.json");
-fs.writeFileSync(process.env.LH_AUTH_FILE, "{}");
+process.env.LH_CONFIG_FILE = path.join(root, "config.json");
+fs.writeFileSync(process.env.LH_CONFIG_FILE, "{}");
 const fetch = globalThis.fetch;
 globalThis.fetch = async () => { throw Error("Unexpected network in offline compaction route regression"); };
 after(() => { globalThis.fetch = fetch; fs.rmSync(root, { recursive: true, force: true }); });

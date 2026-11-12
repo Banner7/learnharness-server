@@ -8,7 +8,7 @@ import { SEARCH_ENGINES, type SearchEngineId } from "../src/core/search.ts";
 // Real settings/auth composition with fake keys and an injected transport only.
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lh-search-expansion-"));
 process.env.LH_DATA_DIR = path.join(dir, "data");
-process.env.LH_AUTH_FILE = path.join(dir, "auth.json");
+process.env.LH_CONFIG_FILE = path.join(dir, "config.json");
 for (const { envVar } of SEARCH_ENGINES) delete process.env[envVar];
 const { keyStatuses } = await import("../src/server/keys.ts");
 // Keys are server environment only; tests set them the way an operator would.

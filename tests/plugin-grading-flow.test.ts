@@ -11,7 +11,7 @@ import type { LhMessage } from "../src/core/native-messages.ts";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "lh-grading-flow-"));
 process.env.LH_DATA_DIR = path.join(root, "data");
-process.env.LH_AUTH_FILE = path.join(root, "auth.json");
+process.env.LH_CONFIG_FILE = path.join(root, "config.json");
 process.env.OPENROUTER_API_KEY = "isolated-key-presence-only";
 const realFetch = globalThis.fetch;
 globalThis.fetch = async () => { throw new Error("Unexpected network in grading flow"); };

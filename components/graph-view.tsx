@@ -1432,7 +1432,7 @@ export function GraphView({
 						<div className="text-lg font-medium text-foreground">Knowledge graph</div>
 						<div className="max-w-sm text-sm">
 							<p>Start a session to begin learning.</p>
-							<p className="mt-1 text-xs">Attach your material with the paperclip or drag and drop.</p>
+							<p className="mt-1 text-xs">Add your material in Library.</p>
 						</div>
 					</div>
 				</div>

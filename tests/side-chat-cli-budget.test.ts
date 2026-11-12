@@ -13,8 +13,9 @@ import type { SideChatThread } from "../src/core/contracts.ts";
 assert.equal(process.env.NODE_ENV, "test");
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "lh-cli-side-budget-"));
 process.env.LH_DATA_DIR = path.join(scratch, "data");
-process.env.LH_AUTH_FILE = path.join(scratch, "auth.json");
-fs.writeFileSync(process.env.LH_AUTH_FILE, "{}");
+process.env.LH_CONFIG_FILE = path.join(scratch, "config.json");
+fs.writeFileSync(process.env.LH_CONFIG_FILE, "{}");
+const { setClaudeCodeEnabled } = await import("./helpers/server-config.ts");
 const previousPath = process.env.PATH;
 const bin = path.join(scratch, "bin"); fs.mkdirSync(bin);
 fs.writeFileSync(path.join(bin, process.platform === "win32" ? "claude.exe" : "claude"), "", { mode: 0o755 });
@@ -48,7 +49,7 @@ function answer() {
 describe("session CLI window × raw side delivery", () => {
 	for (const scenario of ["initial", "internal", "first-steer", "internal-steer", "first-steer-overflow", "internal-steer-overflow", "retry-local", "retry-real-error", "fresh-missing", "internal-fresh-missing", "wrong-model", "reserve-overflow"] as const) {
 		it(scenario, async () => {
-			writeSettings({ claudeCode: { enabled: true }, compaction: { thresholdTokens: 45_000 }, graph: { enabled: false } });
+			setClaudeCodeEnabled(true); writeSettings({ compaction: { thresholdTokens: 45_000 }, graph: { enabled: false } });
 			assert.equal(catalogContextLimits().has("claude-code:opus"), false, "the CLI catalog placeholder must remain excluded");
 			const chat = chatStore.createChat("Synthetic CLI side budget");
 			chatStore.saveSettings(chat.id, { model: { provider: "claude-code", id: "opus" } });

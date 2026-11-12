@@ -14,6 +14,17 @@ let stopCatalogSignals: (() => void) | undefined;
 const catalogReaders = new Set<() => void>();
 const publishCatalog = () => { for (const reader of catalogReaders) reader(); };
 
+/** Server-side config file edits (keys, custom providers, Claude Code) have no
+ *  in-app signal: re-read when the tab regains focus, at most every 30 s. */
+export const FOCUS_REFRESH_MS = 30_000;
+let lastFocusRefresh = 0;
+function refreshOnFocus(): void {
+	const now = Date.now();
+	if (now - lastFocusRefresh < FOCUS_REFRESH_MS) return;
+	lastFocusRefresh = now;
+	fetchCatalog(true);
+}
+
 function fetchCatalog(revalidate = false): void {
 	if (revalidate) { catalogGeneration++; catalogInflight = undefined; }
 	if (catalogInflight) return;
@@ -38,9 +49,12 @@ export function useModelCatalog(): { catalog: ModelCatalogResponse | undefined; 
 		const read = () => setSnapshot({ catalog: catalogCache, failed: catalogError });
 		catalogReaders.add(read);
 		if (first) {
-			stopCatalogSignals = onSettingsSaved((section) => {
+			const stopSaved = onSettingsSaved((section) => {
 				if (section === "models") fetchCatalog(true);
 			});
+			window.addEventListener("focus", refreshOnFocus);
+			stopCatalogSignals = () => { stopSaved(); window.removeEventListener("focus", refreshOnFocus); };
+			lastFocusRefresh = Date.now();
 			fetchCatalog(true);
 		} else fetchCatalog();
 		read();

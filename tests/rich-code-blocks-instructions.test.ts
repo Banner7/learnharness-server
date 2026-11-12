@@ -14,8 +14,8 @@ import { FAMILIES, INSTRUCTIONS, type Family } from "../plugins/rich-code-blocks
 // Redirect storage before importing the host/agents. No provider or user data is used.
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "lh-rich-instructions-"));
 process.env.LH_DATA_DIR = path.join(root, "app-data");
-process.env.LH_AUTH_FILE = path.join(root, "auth.json");
-fs.writeFileSync(process.env.LH_AUTH_FILE, "{}");
+process.env.LH_CONFIG_FILE = path.join(root, "config.json");
+fs.writeFileSync(process.env.LH_CONFIG_FILE, "{}");
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async () => { throw new Error("Unexpected network in Rich code blocks instruction tests"); };
 after(() => { globalThis.fetch = originalFetch; fs.rmSync(root, { recursive: true, force: true }); });

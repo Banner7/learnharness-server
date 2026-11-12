@@ -16,7 +16,7 @@ import { after, describe, it, type TestContext } from "node:test";
 
 const TMP_DATA = fs.mkdtempSync(path.join(os.tmpdir(), "lh-store-writes-atomic-"));
 process.env.LH_DATA_DIR = TMP_DATA;
-process.env.LH_AUTH_FILE = path.join(TMP_DATA, "auth.json");
+process.env.LH_CONFIG_FILE = path.join(TMP_DATA, "config.json");
 
 const config = await import("../config.ts");
 const { chatStore } = await import("../src/store/chats.ts");
@@ -26,7 +26,6 @@ const { graphStore } = await import("../src/store/graph.ts");
 const { writeRenderSettings } = await import("../src/store/render-settings.ts");
 const { ensureGraphFormat } = await import("../src/store/graph-format.ts");
 const { promptOverrides } = await import("../src/store/prompt-overrides.ts");
-const { authStore } = await import("../src/store/auth.ts");
 const { sourceOrganizationStore } = await import("../src/store/source-organization.ts");
 const { themeStore } = await import("../src/store/themes.ts");
 const { DEFAULT_THEME } = await import("../src/core/themes.ts");

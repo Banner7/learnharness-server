@@ -5,6 +5,8 @@ import { after, describe, it } from "node:test";
 import assert from "node:assert/strict";
 const testData = fs.mkdtempSync(path.join(os.tmpdir(), "lh-cli-catalog-data-"));
 process.env.LH_DATA_DIR = testData;
+process.env.LH_CONFIG_FILE = path.join(testData, "config.json");
+const { setClaudeCodeEnabled } = await import("./helpers/server-config.ts");
 after(() => fs.rmSync(testData, { recursive: true, force: true }));
 const {
 	catalogContextLimits,
@@ -344,8 +346,7 @@ describe("pi thinking truth (pinned against pi-ai upgrades)", () => {
 function withClaudeInstalled(installed: boolean, fn: () => void, enabled = true): void {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "claude-catalog-"));
 	const saved = { PATH: process.env.PATH, HOME: process.env.HOME, npm_config_prefix: process.env.npm_config_prefix };
-	const settings = readSettings();
-	writeSettings({ ...(settings ?? { version: 1 }), claudeCode: { enabled } });
+	setClaudeCodeEnabled(enabled);
 
 	if (installed) fs.writeFileSync(path.join(dir, "claude"), "#!/bin/sh\n", { mode: 0o755 });
 	process.env.PATH = dir;
@@ -359,8 +360,7 @@ function withClaudeInstalled(installed: boolean, fn: () => void, enabled = true)
 			if (value === undefined) delete process.env[name];
 			else process.env[name] = value;
 		}
-		if (settings) writeSettings(settings);
-		else fs.rmSync(SETTINGS_FILE, { force: true });
+		setClaudeCodeEnabled(false);
 		fs.rmSync(dir, { recursive: true, force: true });
 	}
 }

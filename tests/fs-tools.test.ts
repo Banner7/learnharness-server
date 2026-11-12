@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { expandBraces, isSensitivePath, matchGlob, resolveSourcePath, walkFiles } from "../src/agent/tools/fs-shared.ts";
-import { globToRegex } from "../src/core/glob.ts";
+import { globMatcher } from "../src/core/glob.ts";
 import { findTool } from "../src/agent/tools/find.ts";
 import { grepTool } from "../src/agent/tools/grep.ts";
 import { lsTool } from "../src/agent/tools/ls.ts";
@@ -82,8 +82,8 @@ describe("glob helpers (fs-shared)", () => {
 	});
 
 	it("question mark is one char, literals are escaped", () => {
-		assert.equal(globToRegex("a?c").test("abc"), true);
-		assert.equal(globToRegex("a?c").test("ac"), false);
+		assert.equal(globMatcher("a?c")("abc"), true);
+		assert.equal(globMatcher("a?c")("ac"), false);
 		assert.equal(matchGlob("a.b.txt", "a.b*"), true, "the dot is literal, not any-char");
 	});
 });

@@ -1,57 +1,38 @@
-import { z } from "zod";
 import { createProvider, type AssistantMessage, type Provider, type StreamFunction } from "@earendil-works/pi-ai";
 import { AssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+import { authEnvRecord } from "../core/auth-env.ts";
+import { serverConfig, type ConfigSecret, type CustomProviderDefinition } from "../core/server-config.ts";
 
-const secret = z.union([z.string().min(1), z.object({ env: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/) }).strict()]);
-const definition = z.object({
-	id: z.string().regex(/^[a-z][a-z0-9-]*$/),
-	name: z.string().min(1).optional(),
-	baseUrl: z.string().url().refine((value) => {
-		const url = new URL(value);
-		return (url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) && !url.username && !url.password && !url.search && !url.hash;
-	}),
-	apiKey: secret.optional(),
-	headers: z.record(z.string().regex(/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/), secret).default({}),
-	models: z.array(z.object({
-		id: z.string().min(1), name: z.string().min(1).optional(),
-		contextWindow: z.number().int().positive(), maxTokens: z.number().int().positive(),
-		input: z.array(z.enum(["text", "image"])).min(1).default(["text"]),
-		reasoning: z.boolean().default(false),
-		compat: z.object({
-			supportsStore: z.boolean().optional(), supportsDeveloperRole: z.boolean().optional(),
-			supportsReasoningEffort: z.boolean().optional(), supportsUsageInStreaming: z.boolean().optional(),
-			maxTokensField: z.enum(["max_tokens", "max_completion_tokens"]).optional(),
-		}).strict().optional(),
-	}).strict()).min(1),
-}).strict();
-type Definition = z.infer<typeof definition>;
-let source: string | undefined;
-let definitions: Definition[] = [];
-
-/** Server environment only: auth material never enters settings/catalog DTOs. */
-function configured(): Definition[] {
-	const raw = process.env.LH_CUSTOM_PROVIDERS ?? "[]";
-	if (source !== raw) {
-		let parsed: unknown;
-		try { parsed = JSON.parse(raw); } catch { throw new Error("LH_CUSTOM_PROVIDERS must be a JSON array"); }
-		const result = z.array(definition).safeParse(parsed);
-		if (!result.success) throw new Error("Invalid LH_CUSTOM_PROVIDERS configuration; check provider/model fields in docs/custom-providers.md");
-		const ids = new Set<string>();
-		for (const item of result.data) {
-			if (ids.has(item.id) || new Set(item.models.map((model) => model.id)).size !== item.models.length) throw new Error("Duplicate custom provider or model id");
-			ids.add(item.id);
-		}
-		definitions = result.data; source = raw;
-	}
-	return definitions;
+/** The operator config file's customProviders (core/server-config.ts),
+ *  read through the store's registered reader: auth material never enters
+ *  settings/catalog DTOs. An invalid file yields none; built-ins still work. */
+function configured(): readonly CustomProviderDefinition[] {
+	return serverConfig().config.customProviders;
 }
-function resolve(value: z.infer<typeof secret>): string | undefined {
-	const result = typeof value === "string" ? value : process.env[value.env];
+
+/** Changes whenever the configured custom providers may have changed:
+ *  piModels() re-registers them when it does. */
+export function customProvidersStamp(): string {
+	return serverConfig().stamp;
+}
+
+/** `{"env": "NAME"}`: the real environment wins, then keys.NAME from the
+ *  config file. A value LearnHarness itself mirrored into process.env is
+ *  skipped in favor of the file's current copy (it may be stale). */
+function resolve(value: ConfigSecret): string | undefined {
+	let result: string | undefined;
+	if (typeof value === "string") result = value;
+	else {
+		const env = process.env[value.env];
+		result = env !== undefined && !authEnvRecord().fillGap.has(value.env)
+			? env
+			: serverConfig().config.keys[value.env] ?? env;
+	}
 	if (result !== undefined && (!result || /[\r\n\x00]/.test(result))) throw new Error("Invalid custom provider authentication value");
 	return result;
 }
-function authentication(config: Definition) {
+function authentication(config: CustomProviderDefinition) {
 	const apiKey = config.apiKey === undefined ? undefined : resolve(config.apiKey);
 	if (config.apiKey !== undefined && apiKey === undefined) return undefined;
 	const headers: Record<string, string | null> = {};
@@ -82,7 +63,7 @@ export function customProviders(): Provider[] {
 		id: config.id, name: config.name ?? config.id, baseUrl: config.baseUrl,
 		auth: { apiKey: { name: `${config.name ?? config.id} authentication`, resolve: async () => {
 			const auth = authentication(config);
-			return auth ? { auth, source: "LH_CUSTOM_PROVIDERS" } : undefined;
+			return auth ? { auth, source: "config file" } : undefined;
 		} } },
 		models: config.models.map((model) => ({
 			...model, name: model.name ?? model.id, provider: config.id, api: "openai-completions" as const,

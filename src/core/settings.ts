@@ -164,8 +164,8 @@ export interface ProviderKeyMissing {
 }
 /** The refusal wording's invariant tail — the matcher below keys on it
  * (the label prefix varies by provider). */
-const PROVIDER_KEY_MISSING_TAIL = "key is set — add one in Settings → Keys";
-const CLAUDE_CODE_UNAVAILABLE = "Claude Code is unavailable. Enable and set it up in Settings → Providers.";
+const PROVIDER_KEY_MISSING_TAIL = "key is set — add it to the server config file or environment.";
+const CLAUDE_CODE_UNAVAILABLE = "Claude Code is unavailable. Enable it in the server config file (see docs/claude-code.md).";
 export function providerKeyMissing(provider: string, slots: ModelSlotName[]): ProviderKeyMissing {
 	const label = AUTH_PROVIDER_KEYS.find((p) => p.id === provider)?.label ?? provider;
 	return {
@@ -394,9 +394,6 @@ export interface CompactionSettings {
 export interface UserSettings {
 	version: number;
 	dictation?: DictationSettings;
-	/** Server-managed opt-in, set out of band in the settings file; there is
-	 *  no browser write surface. Absent/invalid is off, including older records. */
-	claudeCode?: { enabled?: boolean };
 	agent?: AgentSettings;
 	/** The strong/cheap/vision model slots (model slots wave, 2026-09-20). */
 	models?: ModelsSettings;
@@ -665,7 +662,7 @@ function sanitizeCompaction(raw: Record<string, unknown>): CompactionSettings {
 	return out;
 }
 
-const DEAD_SETTINGS_KEYS: Record<string, true> = { chat: true, general: true, customProvider: true };
+const DEAD_SETTINGS_KEYS: Record<string, true> = { chat: true, general: true, customProvider: true, claudeCode: true };
 
 /**
  * Coerce arbitrary JSON (disk file, network body) into a valid delta record:
@@ -685,12 +682,6 @@ export function sanitizeUserSettings(raw: unknown): UserSettings | null {
 			isDictationLanguage((raw as Record<string, unknown>).language)
 			? { language: (raw as DictationSettings).language }
 			: {};
-	}
-	if (r.claudeCode !== undefined) {
-		const raw = r.claudeCode;
-		out.claudeCode = raw !== null && typeof raw === "object" && !Array.isArray(raw)
-			&& typeof (raw as Record<string, unknown>).enabled === "boolean"
-			? { enabled: (raw as { enabled: boolean }).enabled } : {};
 	}
 	if (r.agent !== null && typeof r.agent === "object" && !Array.isArray(r.agent)) {
 		out.agent = sanitizeAgent(r.agent as Record<string, unknown>);
@@ -712,7 +703,9 @@ export function sanitizeUserSettings(raw: unknown): UserSettings | null {
 	// keys are stripped instead of riding: `chat` (the old default-settings
 	// section) died with per-session models (owner, 2026-09-28); `general`
 	// (update checks) and `customProvider` (the settings-backed endpoint,
-	// replaced by LH_CUSTOM_PROVIDERS) died with the server port. A fossil copy
+	// replaced by the config file's customProviders) died with the server
+	// port; `claudeCode` (the hand-edited opt-in) moved to the operator config
+	// file in v0.2.0. A fossil copy
 	// on disk must never resurrect through reads (a later write flushes it).
 	for (const [key, value] of Object.entries(r)) {
 		if (Object.hasOwn(DEAD_SETTINGS_KEYS, key)) continue;

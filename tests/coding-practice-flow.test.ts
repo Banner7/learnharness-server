@@ -10,7 +10,7 @@ import type { LhMessage } from "../src/core/native-messages.ts";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "lh-coding-practice-flow-"));
 process.env.LH_DATA_DIR = path.join(root, "data");
-process.env.LH_AUTH_FILE = path.join(root, "auth.json");
+process.env.LH_CONFIG_FILE = path.join(root, "config.json");
 process.env.OPENROUTER_API_KEY = "isolated-presence-only";
 const realFetch = globalThis.fetch;
 globalThis.fetch = async () => { throw Error("Unexpected external network"); };

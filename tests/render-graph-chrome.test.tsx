@@ -52,7 +52,7 @@ describe("GraphChromeRow — the empty-graph ruling (owner, 2026-09-25)", () => 
 	it("empty graph uses the same session-first lead and secondary material guidance as home", () => {
 		const html = renderToStaticMarkup(createElement(ServerEventsProvider, { children: createElement(GraphView, {}) }));
 		assert.ok(html.includes("<p>Start a session to begin learning.</p>"));
-		assert.ok(html.includes("Attach your material with the paperclip or drag and drop.</p>"));
+		assert.ok(html.includes("Add your material in Library.</p>"));
 		assert.ok(!html.includes("import notes to build"));
 	});
 

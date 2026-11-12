@@ -6,8 +6,8 @@ import { after, beforeEach, it } from "node:test";
 import type { GraphChain, GraphNode } from "../src/core/index.ts";
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "lh-vault-reextract-"));
 const vaultDir = fs.mkdtempSync(path.join(os.tmpdir(), "lh-vault-dir-"));
-process.env.LH_DATA_DIR = root; process.env.LH_AUTH_FILE = path.join(root, "auth.json"); process.env.LH_VAULT_DIR = vaultDir;
-fs.writeFileSync(process.env.LH_AUTH_FILE, "{}\n");
+process.env.LH_DATA_DIR = root; process.env.LH_CONFIG_FILE = path.join(root, "config.json"); process.env.LH_VAULT_DIR = vaultDir;
+fs.writeFileSync(process.env.LH_CONFIG_FILE, "{}\n");
 const { stores } = await import("../src/server/stores.ts");
 const { getGraph } = await import("../src/core/graph.ts");
 const { detachSourceTraces, pruneDetachedNodes } = await import("../src/core/graph-deletion.ts");
@@ -15,7 +15,7 @@ const { DELETE } = await import("../app/api/graph/sources/route.ts");
 const { DELETE: deleteMissing } = await import("../app/api/library/missing/route.ts");
 const { vaultEntryState } = await import("../src/core/vault-sync.ts");
 const { writeSettings } = await import("../src/store/settings.ts");
-beforeEach(() => { fs.rmSync(root, { recursive: true, force: true }); fs.mkdirSync(root); fs.writeFileSync(process.env.LH_AUTH_FILE!, "{}\n"); });
+beforeEach(() => { fs.rmSync(root, { recursive: true, force: true }); fs.mkdirSync(root); fs.writeFileSync(process.env.LH_CONFIG_FILE!, "{}\n"); });
 after(() => { fs.rmSync(root, { recursive: true, force: true }); fs.rmSync(vaultDir, { recursive: true, force: true }); });
 
 const node = (id: string, sources: string[]): GraphNode =>

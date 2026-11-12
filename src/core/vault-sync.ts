@@ -1,5 +1,5 @@
 import type { NotesSource } from "./contracts.ts";
-import { globSource, globToRegex } from "./glob.ts";
+import { globMatcher } from "./glob.ts";
 
 /**
  * Vault library reconcile: the vault is the library and LearnHarness
@@ -116,19 +116,19 @@ export function reconcileVault(
 export function vaultPathExcluded(path: string, exclude: readonly string[]): boolean {
 	return exclude.some((pattern) => {
 		if (!/[*?]/.test(pattern)) return pattern.endsWith("/") ? path.startsWith(pattern) : path === pattern;
-		return globRegex(pattern).test(path);
+		return globMatch(pattern)(path);
 	});
 }
 
-const globCache = new Map<string, RegExp>();
+const globCache = new Map<string, (path: string) => boolean>();
 /** A folder glob (trailing `/`) matches that folder's path as a prefix
  *  (everything under it); a file glob must match the whole path. */
-function globRegex(pattern: string): RegExp {
-	let re = globCache.get(pattern);
-	if (re) return re;
-	re = pattern.endsWith("/") ? new RegExp(`^${globSource(pattern.slice(0, -1))}/`) : globToRegex(pattern);
-	globCache.set(pattern, re);
-	return re;
+function globMatch(pattern: string): (path: string) => boolean {
+	let match = globCache.get(pattern);
+	if (match) return match;
+	match = pattern.endsWith("/") ? globMatcher(pattern.slice(0, -1), true) : globMatcher(pattern);
+	globCache.set(pattern, match);
+	return match;
 }
 
 /** LH_VAULT_EXCLUDE: comma-separated patterns, whitespace-trimmed, empties dropped. */

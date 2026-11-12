@@ -95,7 +95,7 @@ id: string;
 
 ### CatalogProvider name
 
-Display name for server-managed (LH_CUSTOM_PROVIDERS) providers.
+Display name for server-managed (config file `customProviders`) providers.
 
 ```ts
 name?: string;
@@ -103,7 +103,7 @@ name?: string;
 
 ### CatalogProvider serverManaged
 
-Configured on the server only (LH_CUSTOM_PROVIDERS); never written here.
+Configured on the server only (config file `customProviders`); never written here.
 
 ```ts
 serverManaged?: true;

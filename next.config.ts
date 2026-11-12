@@ -22,10 +22,11 @@ const nextConfig: NextConfig = {
 	// developer's session data inside it.
 	//
 	// SECRETS (2026-10-08, caught in the payload audit): the same sweep
-	// ships the repo-root auth.json — the dev key store — byte-identical
-	// into the Docker image (the image never reads it: LH_AUTH_FILE points at
-	// /secrets/auth.json). Excluded here; build-server.mjs also REFUSES
-	// to package any standalone still containing it. .env* belt-and-braces
+	// ships the repo-root key store — config.json since v0.2.0, auth.json
+	// before — byte-identical into the Docker image (the image never reads
+	// it: LH_CONFIG_FILE points at /secrets/config/config.json). Excluded here;
+	// build-server.mjs also REFUSES to package any standalone still
+	// containing either. .env* belt-and-braces
 	// the same class. Next also copies loaded bare .env after tracing;
 	// the build-server refusal remains required even with these excludes.
 	//
@@ -48,6 +49,7 @@ const nextConfig: NextConfig = {
 	outputFileTracingExcludes: {
 		"*": [
 			"**/data/**/*",
+			"config.json",
 			"auth.json",
 			"chatgpt-credentials.json*",
 			"github-copilot-credentials.json*",

@@ -1,7 +1,7 @@
 /**
  * POST-less BYOK mint: the renderer never holds the real Deepgram key.
  *
- * The key lives server-side only (the server's auth.json or environment —
+ * The key lives server-side only (the server config file or environment —
  * same seam as OPENROUTER_API_KEY). A dictation
  * run starts here: mint a short-lived access token (TTL 300s — a run can
  * outlast the 30s default), the renderer opens its WebSocket to Deepgram
@@ -19,7 +19,7 @@ export async function GET() {
 	const key = keyValue("DEEPGRAM_API_KEY");
 	if (!key) {
 		return Response.json(
-			{ message: "No DEEPGRAM_API_KEY — add it to the server's auth.json or environment." },
+			{ message: "No DEEPGRAM_API_KEY — add it to the server config file or environment." },
 			{ status: 503 },
 		);
 	}

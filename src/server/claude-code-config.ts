@@ -1,10 +1,12 @@
 import { getClaudeBinary } from "../agent/claude-code/binary.ts";
-import { settingsStore } from "../store/settings.ts";
+import { configStore } from "../store/config.ts";
 
-/** Fresh admission state, not a process-wide cache. Existing runs retain
- * their engines; only new chat/job/extraction/compaction admissions consult it. */
+/** The operator config file's opt-in (`claudeCode.enabled`), re-read when the
+ * file changes. Fresh admission state, not a process-wide cache: existing runs
+ * retain their engines; only new chat/job/extraction/compaction admissions
+ * consult it. */
 export function claudeCodeEnabled(): boolean {
-	return settingsStore.readSettings()?.claudeCode?.enabled === true;
+	return configStore.read().config.claudeCode.enabled;
 }
 
 /** Installation/opt-in availability only, never authenticated readiness. */

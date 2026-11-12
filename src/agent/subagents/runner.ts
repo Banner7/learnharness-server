@@ -204,7 +204,12 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
 			jobStore.updateJob(jobId, { status: "error", error: `unknown kind ${job.kind}`, activity: "failed" });
 			return;
 		}
-		const engine = pickEngine(job.kind);
+		// A stale pin (e.g. a retired provider in migrated settings) makes
+		// the catalog lookup throw: refuse it below like a missing engine.
+		let engine: PiEngine | undefined;
+		let engineError: string | undefined;
+		try { engine = pickEngine(job.kind); }
+		catch (err) { engineError = err instanceof Error ? err.message : String(err); }
 		// The per-need refusal guards (BYOK 2026-09-22 / provider-key
 		// interlude 2026-09-25): no engine for the kind's tier, or the
 		// resolved engine's provider key gone — both refuse through the SAME
@@ -243,6 +248,11 @@ export function createJobRunner(deps: JobRunnerDeps): JobRunner {
 								};
 			await finishJob(jobId, failure);
 		};
+		if (engineError !== undefined) {
+			console.info(`[job ${jobId}] refused — ${engineError}`);
+			await refuse(`The configured model is unavailable: ${engineError}`);
+			return;
+		}
 		if (!engine) {
 			const tier = ROLE_SLOT[KIND_ROLE[job.kind]];
 			const envelope = modelsNotConfigured([tier]);

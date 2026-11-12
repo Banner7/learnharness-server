@@ -67,9 +67,9 @@ export interface ModelCatalogResponse {
 /** One row of the providers surface. */
 export interface CatalogProvider {
 	id: string;
-	/** Display name for server-managed (LH_CUSTOM_PROVIDERS) providers. */
+	/** Display name for server-managed (config file `customProviders`) providers. */
 	name?: string;
-	/** Configured on the server only (LH_CUSTOM_PROVIDERS); never written here. */
+	/** Configured on the server only (config file `customProviders`); never written here. */
 	serverManaged?: true;
 	/** Credential environment-variable name; empty for native CLI and server-managed routes. */
 	envVar: string;

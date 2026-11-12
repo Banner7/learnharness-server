@@ -10,10 +10,10 @@ import type { AssistantMessage, Model, StreamFunction } from "@earendil-works/pi
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "lh-settings-admission-"));
 process.env.HOME = path.join(directory, "home");
 process.env.LH_DATA_DIR = path.join(directory, "data");
-process.env.LH_AUTH_FILE = path.join(directory, "auth.json");
+process.env.LH_CONFIG_FILE = path.join(directory, "config.json");
 fs.mkdirSync(process.env.HOME, { recursive: true });
 fs.mkdirSync(process.env.LH_DATA_DIR, { recursive: true });
-fs.writeFileSync(process.env.LH_AUTH_FILE, "{}");
+fs.writeFileSync(process.env.LH_CONFIG_FILE, "{}");
 const settingsFile = path.join(process.env.LH_DATA_DIR, "settings.json");
 const initial = {
 	version: 1,

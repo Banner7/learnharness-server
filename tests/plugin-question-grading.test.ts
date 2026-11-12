@@ -11,7 +11,7 @@ import type { NativePluginQuestionDefinition } from "../src/agent/plugin-questio
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "lh-question-grading-"));
 process.env.LH_DATA_DIR = path.join(root, "data");
-process.env.LH_AUTH_FILE = path.join(root, "auth.json");
+process.env.LH_CONFIG_FILE = path.join(root, "config.json");
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async () => { throw new Error("Unexpected network in isolated grading tests"); };
 after(() => { globalThis.fetch = originalFetch; fs.rmSync(root, { recursive: true, force: true }); });

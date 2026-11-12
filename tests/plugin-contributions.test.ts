@@ -19,7 +19,7 @@ import type { PiEngine } from "../src/agent/models.ts";
 // directory. Every inference call below uses the native SDK's in-process faux.
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), "plugin-contributions-data-"));
 process.env.LH_DATA_DIR = DATA;
-process.env.LH_AUTH_FILE = path.join(DATA, "auth.json");
+process.env.LH_CONFIG_FILE = path.join(DATA, "config.json");
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async () => { throw Error("Unexpected network request in plugin contribution tests"); };
 after(() => { globalThis.fetch = originalFetch; fs.rmSync(DATA, { recursive: true, force: true }); });

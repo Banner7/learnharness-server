@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CLAUDE_CODE_MINIMUM_VERSION, type ClaudeCodeStatus, type UserSettings } from "@/src/core";
+import { CLAUDE_CODE_MINIMUM_VERSION, type ClaudeCodeStatus } from "@/src/core";
 import { Button } from "@/components/ui/button";
 
 export function claudeCodeStatusLabel(status: ClaudeCodeStatus | null): string {
@@ -12,37 +12,14 @@ export function claudeCodeStatusLabel(status: ClaudeCodeStatus | null): string {
 	}
 }
 
-export function ClaudeCodeInstallationStatus() {
-	const [enabled, setEnabled] = useState(false);
-	const [loaded, setLoaded] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+/** `enabled` is the config file's opt-in, read by the Providers section
+ *  from /api/keys (undefined until loaded). The app never changes it. */
+export function ClaudeCodeInstallationStatus({ enabled: configured }: { enabled: boolean | undefined }) {
+	const loaded = configured !== undefined;
+	const enabled = configured === true;
 	const [status, setStatus] = useState<ClaudeCodeStatus | null>(null);
 	const [busy, setBusy] = useState(false);
 	const request = useRef<AbortController | null>(null);
-	const settingsRead = useRef<AbortController | null>(null);
-
-	const read = useCallback(async () => {
-		settingsRead.current?.abort();
-		const controller = new AbortController();
-		settingsRead.current = controller;
-		setLoaded(false);
-		try {
-			const response = await fetch("/api/settings", { cache: "no-store", signal: controller.signal });
-			if (!response.ok) throw new Error("settings unavailable");
-			const body = await response.json() as { settings: UserSettings | null };
-			if (!controller.signal.aborted) {
-				setEnabled(body.settings?.claudeCode?.enabled === true);
-				setLoaded(true);
-				setError(null);
-			}
-		} catch {
-			if (!controller.signal.aborted) setError("Could not load Claude Code settings.");
-		}
-	}, []);
-	useEffect(() => {
-		void read();
-		return () => settingsRead.current?.abort();
-	}, [read]);
 
 	const refresh = useCallback(async () => {
 		if (!enabled) return;
@@ -75,8 +52,7 @@ export function ClaudeCodeInstallationStatus() {
 			<span className="font-prose text-(length:--lh-prose-size) text-foreground">Claude Code</span>
 			{loaded && <span role="status" className="text-xs text-muted-foreground" data-testid="claude-code-enabled">{enabled ? "Enabled on the server" : "Off"}</span>}
 		</div>
-		{error && <p role="alert" className="text-xs text-error">{error}</p>}
-		{loaded && !enabled && <p className="text-xs leading-relaxed text-muted-foreground">Claude Code is enabled in the server configuration, not in the app. See the deployment docs.</p>}
+		{loaded && !enabled && <p className="text-xs leading-relaxed text-muted-foreground">Claude Code is enabled in the server config file, not in the app. See docs/claude-code.md.</p>}
 		{enabled && <>
 			<div className="flex flex-wrap items-center gap-3">
 				<span role="status" className="text-xs text-muted-foreground">{busy ? "Checking…" : claudeCodeStatusLabel(status)}</span>

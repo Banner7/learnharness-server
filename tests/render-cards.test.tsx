@@ -139,7 +139,7 @@ describe("DispatchCard — the BYOK refusal tone (owner, 2026-09-22)", () => {
 
 	it("a key-refused job is INFO: 'needs a provider key', 'Set up providers'", () => {
 		const html = renderToStaticMarkup(
-			inJobs([job({ error: "No OpenRouter key is set — add one in Settings → Keys" })]),
+			inJobs([job({ error: "No OpenRouter key is set — add it to the server config file or environment." })]),
 		);
 		assert.ok(html.includes('data-testid="dispatch-refused"'));
 		assert.ok(html.includes("needs a provider key"));

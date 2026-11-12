@@ -9,14 +9,14 @@ it("plugin learning reader preserves native data and provides reads only", () =>
 	const sources = [{ id: "source", filePath: "/notes.pdf" }];
 	const checkpoints = [{ chatId: "chat_a", foldedAt: "2026-01-01" }];
 	const reader = createPluginLearningData({ directory: "/learning", isBusy: () => true, isCompacting: () => false,
-		chatStore: { getChat: (id: string) => id === "chat_a" ? record : null, listChats: () => [{ id: "chat_a", kind: "teach" }] } as unknown as ChatStore,
+		chatStore: { getChat: (id: string) => id === "chat_a" ? record : null, listChats: () => [{ id: "chat_a", kind: "teach", title: "Source" }] } as unknown as ChatStore,
 		graphStore: { readNodes: () => nodes, readChains: () => [], readCheckpoints: () => checkpoints, readCoverage: () => [], readSources: () => sources, readPositions: () => ({ node: { x: 1, y: 2 } }) } as unknown as GraphStore,
 		readMetadata: (name) => name === "format.json" ? { version: 1 } : { enabled: true },
 	});
 	assert.equal(reader.directory, "/learning");
 	assert.deepEqual(reader.getSession("chat_a"), record);
 	assert.equal(reader.getSession("missing"), null);
-	assert.deepEqual(reader.listSessions(), [{ id: "chat_a", kind: "teach", busy: true, compacting: false }]);
+	assert.deepEqual(reader.listSessions(), [{ id: "chat_a", kind: "teach", title: "Source", busy: true, compacting: false }]);
 	assert.deepEqual(reader.readGraphFile("nodes.jsonl"), nodes);
 	assert.deepEqual(reader.readGraphFile("sources.json"), sources);
 	assert.deepEqual(reader.readGraphFile("sessions.jsonl"), checkpoints);

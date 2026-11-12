@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { standardFontsDir } from "./pdf-ops";
 import { svgImageSource } from "../../../lib/svg-image-source";
@@ -111,6 +112,29 @@ const NO_CHROME_MESSAGE =
 	"Install Google Chrome or set CHROME_PATH to a Chrome executable. " +
 	"(Verification is mandatory — demos are never delivered untested.)";
 
+/** Chrome launch flags (exported for tests). `--no-sandbox` stays: the
+ *  container drops every capability, so neither the setuid nor the user
+ *  namespace sandbox can start. WebRTC may not open UDP outside a proxy,
+ *  which closes the ICE route around the request filter below. */
+export const HEADLESS_CHROME_ARGS: readonly string[] = [
+	"--disable-gpu",
+	"--no-sandbox",
+	"--disable-dev-shm-usage",
+	"--webrtc-ip-handling-policy=disable_non_proxied_udp",
+];
+
+/** Chrome gets a scrubbed environment, never the server's (gate token,
+ *  provider keys mirrored from the config file). Partial: a same-user process
+ *  can still read the parent's /proc environ. */
+export function headlessChromeEnv(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+	return {
+		PATH: env.PATH ?? "",
+		HOME: os.tmpdir(),
+		TMPDIR: os.tmpdir(),
+		...(env.LANG ? { LANG: env.LANG } : {}),
+	};
+}
+
 async function withBrowserPage<T>(fn: (page: import("puppeteer-core").Page) => Promise<T>): Promise<T> {
 	// Per-job launch, closed on the way out.
 	const puppeteer = (await import("puppeteer-core")).default;
@@ -120,7 +144,8 @@ async function withBrowserPage<T>(fn: (page: import("puppeteer-core").Page) => P
 		// Explicit path when we found one; otherwise let puppeteer resolve the
 		// system Chrome install itself via the "chrome" channel.
 		...(executablePath ? { executablePath } : { channel: "chrome" as const }),
-		args: ["--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"],
+		args: [...HEADLESS_CHROME_ARGS],
+		env: headlessChromeEnv(),
 	});
 	try {
 		const page = await browser.newPage();
@@ -135,14 +160,47 @@ async function withBrowserPage<T>(fn: (page: import("puppeteer-core").Page) => P
 // They load in memory on about:blank, which gives the document an opaque
 // origin like the learner's sandboxed iframe. A file:// document could read
 // any local file. As a second layer, requests for any other scheme (file:
-// included) are aborted while the page is loaded.
+// included) are aborted while the page is loaded, and so are web requests to
+// hosts on the server's own networks: the model writes both the page and the
+// probe that reads results back, so those hosts would be a scanner/oracle.
+// Public CDNs stay reachable (demos import libraries from them).
+// Residual: a public name that resolves to a private address (DNS
+// rebinding), and channels page interception does not see (WebSocket
+// handshakes, workers); closing those needs a container egress policy.
 
-const ISOLATED_PAGE_SCHEMES = new Set(["http:", "https:", "data:", "blob:", "about:"]);
+const ISOLATED_PAGE_INLINE_SCHEMES = new Set(["data:", "blob:", "about:"]);
+const ISOLATED_PAGE_WEB_SCHEMES = new Set(["http:", "https:"]);
+
+/** IPv4 literal (already normalized by URL) on a non-public range: this
+ *  host, loopback, private, link-local, CGNAT/tailnet, multicast/reserved. */
+function privateIpv4(host: string): boolean | undefined {
+	const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(host);
+	if (!m) return undefined;
+	const [a, b] = [Number(m[1]), Number(m[2])];
+	return a === 0 || a === 10 || a === 127 || a >= 224 ||
+		(a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||
+		(a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+}
+
+/** True for hosts on the server's own networks (pure; exported for tests).
+ *  IPv6 literals are refused unless global unicast (2000::/3), which
+ *  excludes ::1, ::, IPv4-mapped, link-local fe80::/10 and unique-local
+ *  fc00::/7. Names: single-label (Docker services, localhost), *.internal
+ *  (host.docker.internal), *.local, *.localhost and *.ts.net. */
+export function isPrivateNetworkHost(hostname: string): boolean {
+	const host = hostname.toLowerCase().replace(/\.$/, "");
+	if (host.startsWith("[")) return !/^\[[23][0-9a-f]{0,3}:/.test(host);
+	const ipv4 = privateIpv4(host);
+	if (ipv4 !== undefined) return ipv4;
+	return !host.includes(".") || /\.(?:internal|local|localhost|ts\.net)$/.test(host);
+}
 
 /** Request filter for isolated pages (pure; exported for tests). */
 export function isIsolatedPageRequestAllowed(url: string): boolean {
 	try {
-		return ISOLATED_PAGE_SCHEMES.has(new URL(url).protocol);
+		const parsed = new URL(url);
+		if (ISOLATED_PAGE_INLINE_SCHEMES.has(parsed.protocol)) return true;
+		return ISOLATED_PAGE_WEB_SCHEMES.has(parsed.protocol) && !isPrivateNetworkHost(parsed.hostname);
 	} catch {
 		return false;
 	}

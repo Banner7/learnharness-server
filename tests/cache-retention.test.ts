@@ -12,8 +12,8 @@ import { parseModelsSettingsBody, parseAgentSettingsBody, parseSettingsBody } fr
 // data, provider/CLI calls or network: real adapters stop at payload capture.
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "lh-cache-retention-"));
 const originalEnv = process.env, originalFetch = globalThis.fetch;
-process.env = { PATH: originalEnv.PATH, HOME: directory, NODE_ENV: "test", NODE_TEST_CONTEXT: originalEnv.NODE_TEST_CONTEXT, LH_DATA_DIR: directory, LH_AUTH_FILE: path.join(directory, "auth.json"), ANTHROPIC_API_KEY: "fixture", OPENAI_API_KEY: "fixture", OPENROUTER_API_KEY: "fixture" };
-fs.writeFileSync(process.env.LH_AUTH_FILE!, "{}");
+process.env = { PATH: originalEnv.PATH, HOME: directory, NODE_ENV: "test", NODE_TEST_CONTEXT: originalEnv.NODE_TEST_CONTEXT, LH_DATA_DIR: directory, LH_CONFIG_FILE: path.join(directory, "config.json"), ANTHROPIC_API_KEY: "fixture", OPENAI_API_KEY: "fixture", OPENROUTER_API_KEY: "fixture" };
+fs.writeFileSync(process.env.LH_CONFIG_FILE!, "{}");
 globalThis.fetch = async () => { throw new Error("CLOSED: unexpected network request"); };
 const { piModels, piEngineForSpec } = await import("../src/agent/models.ts");
 const { clampModelsLevels, catalogSlots } = await import("../src/server/model-catalog.ts");

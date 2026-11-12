@@ -5,6 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import fs from "node:fs";
 import net from "node:net";
@@ -16,7 +17,7 @@ import puppeteer from "puppeteer-core";
 const root = path.resolve(import.meta.dirname, "..");
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "lh154-ui-"));
 fs.mkdirSync(path.join(home, "data"));
-fs.writeFileSync(path.join(home, "auth.json"), "{}\n");
+fs.writeFileSync(path.join(home, "config.json"), "{}\n");
 // Next's supported font fixture avoids external font downloads in this check.
 const require = createRequire(import.meta.url);
 const { getFontAxes } = require("next/dist/compiled/@next/font/dist/google/get-font-axes.js");
@@ -32,10 +33,14 @@ await once(listener, "listening");
 const port = listener.address().port;
 await new Promise(resolve => listener.close(resolve));
 const origin = `http://127.0.0.1:${port}`;
+// The web-access gate fails closed: give the child an origin and a token,
+// and send the matching Basic credentials (plus Origin) on every request.
+const accessToken = randomBytes(32).toString("hex");
+const authHeaders = { Authorization: `Basic ${Buffer.from(`learnharness:${accessToken}`).toString("base64")}`, Origin: origin };
 const env = {
 	PATH: process.env.PATH, HOME: home, TMPDIR: home, NODE_ENV: "development",
-	LH_DATA_DIR: path.join(home, "data"), LH_AUTH_FILE: path.join(home, "auth.json"),
-	NEXT_TELEMETRY_DISABLED: "1",
+	LH_DATA_DIR: path.join(home, "data"), LH_CONFIG_FILE: path.join(home, "config.json"),
+	NEXT_TELEMETRY_DISABLED: "1", LH_WEB_ORIGIN: origin, LH_WEB_ACCESS_TOKEN: accessToken,
 	NEXT_FONT_GOOGLE_MOCKED_RESPONSES: path.join(home, "fonts.cjs"),
 };
 const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", String(port)], {
@@ -62,6 +67,7 @@ try {
 		args: ["--disable-background-networking", "--disable-sync", "--no-first-run", "--disable-default-apps"],
 	});
 	page = await browser.newPage();
+	await page.setExtraHTTPHeaders({ Authorization: authHeaders.Authorization });
 	page.setDefaultTimeout(45000);
 	page.on("pageerror", err => errors.push(err.message));
 	const model = { id: "synthetic", name: "Synthetic (no calls)", provider: "fixture", input: ["text"], reasoning: false, supportedLevels: ["off"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 8192, maxTokens: 1024 };
@@ -148,7 +154,7 @@ try {
 		}
 	}
 	// The old long-query mechanism really is rejected by this isolated Node server.
-	const oldResponse = await fetch(`${origin}${new URL(page.url()).pathname}?prompt=${encodeURIComponent(long)}`);
+	const oldResponse = await fetch(`${origin}${new URL(page.url()).pathname}?prompt=${encodeURIComponent(long)}`, { headers: authHeaders });
 	assert.equal(oldResponse.status, 431); await oldResponse.text();
 	checks.push("old long-query request returned431 (browser-shell blank appearance not asserted)");
 

@@ -69,7 +69,8 @@ COPY --from=browser /opt/chrome-headless-shell-linux64 /opt/chrome-headless-shel
 
 # node server.js binds these; keep the port loopback-published at the host.
 # The access gate (LH_WEB_ORIGIN / LH_WEB_ACCESS_TOKEN / LH_TAILSCALE_USERS)
-# and provider keys are supplied at runtime via secrets/runtime.env.
+# comes from secrets/runtime.env; provider keys, custom providers and the
+# Claude Code opt-in from the read-only config file at LH_CONFIG_FILE.
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
@@ -78,7 +79,7 @@ ENV NODE_ENV=production \
     CLAUDE_CONFIG_DIR=/claude \
     CHROME_PATH=/opt/chrome-headless-shell-linux64/chrome-headless-shell \
     LH_DATA_DIR=/data \
-    LH_AUTH_FILE=/secrets/auth.json
+    LH_CONFIG_FILE=/secrets/config/config.json
 
 WORKDIR /app
 # The standalone dir is self-contained: server.js + traced node_modules +

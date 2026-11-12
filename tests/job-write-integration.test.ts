@@ -6,7 +6,7 @@ import { after, test, type TestContext } from "node:test";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "lh-job-write-integration-"));
 process.env.LH_DATA_DIR = path.join(root, "data");
-process.env.LH_AUTH_FILE = path.join(root, "auth.json");
+process.env.LH_CONFIG_FILE = path.join(root, "config.json");
 const { jobStore } = await import("../src/store/jobs.ts");
 const { subscribe } = await import("../src/core/events.ts");
 after(() => fs.rmSync(root, { recursive: true, force: true }));

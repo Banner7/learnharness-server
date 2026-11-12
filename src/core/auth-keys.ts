@@ -4,8 +4,8 @@
  * Providers section's status table (label, description, where-to-get docs
  * link); keys are configured on the server, never in the browser.
  *
- * The store itself is the long-standing flat {VAR: value} auth.json map
- * (see config.AUTH_FILE): keys are identified BY their environment-variable
+ * The store itself is the operator config file's flat `keys` map (see
+ * config.CONFIG_FILE): keys are identified BY their environment-variable
  * name — the same name consumers read today (OPENROUTER_API_KEY, …), so the
  * catalog id IS the file key and the env var, one name everywhere.
  *

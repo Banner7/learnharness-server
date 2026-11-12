@@ -42,8 +42,8 @@ LearnHarness uses AI agents to plan and teach lessons from your current understa
 | --- | --- | --- |
 | Packaging | Electron desktop app with installers and in-app updates | Server only, shipped as a Docker image. No Electron, no installers, no updater. |
 | Access | Desktop shell credentials; browser-only mode has no login | Fail-closed access gate: every request is refused until `LH_WEB_ORIGIN` and `LH_WEB_ACCESS_TOKEN` are set. Access by HTTP Basic auth or an allowlisted Tailscale identity. Host and Origin are pinned to the configured origin. |
-| Credentials | Keys entered in Settings; ChatGPT, GitHub Copilot, and Grok sign-in | Credentials come only from server environment variables or a server-managed `auth.json`. The Providers page is read-only. No in-app key entry and no subscription sign-in. |
-| Custom endpoints | One OpenAI-compatible endpoint configured in the app | Any number of OpenAI-compatible providers declared in `LH_CUSTOM_PROVIDERS` ([docs](docs/custom-providers.md)). |
+| Credentials | Keys entered in Settings; ChatGPT, GitHub Copilot, and Grok sign-in | Credentials come only from server environment variables or the read-only operator config file (`LH_CONFIG_FILE`). The Providers page is read-only. No in-app key entry and no subscription sign-in. |
+| Custom endpoints | One OpenAI-compatible endpoint configured in the app | Any number of OpenAI-compatible providers declared in the config file's `customProviders` ([docs](docs/custom-providers.md)). |
 | Notes library | Notes imported by upload | The library can also follow a read-only Markdown folder (`LH_VAULT_DIR`) and sync it into the graph from Settings → Library. |
 | Layout | Desktop window | Phone-first layout: sidebar and settings become drawers or full-screen sheets on narrow screens, side conversations become a bottom sheet, touch-sized controls, Drawing Pad accepts touch ink, installable web app manifest. |
 | Look | Default theme | Kasumi theme by default, plus an Automatic theme that follows the system light/dark setting. The old default is kept as "Classic Dark". |
@@ -55,7 +55,7 @@ LearnHarness uses AI agents to plan and teach lessons from your current understa
 Requirements: Docker on an amd64 host and an authenticated HTTPS reverse proxy (for example Tailscale Serve) in front of the container.
 
 ```sh
-docker build -t learnharness:0.1.1 .
+docker build -t learnharness:0.2.0 .
 mkdir -p data secrets claude && chown 1000:1000 claude
 cp deploy/compose.example.yml compose.yml
 # create secrets/runtime.env with at least LH_WEB_ORIGIN and LH_WEB_ACCESS_TOKEN
@@ -75,12 +75,11 @@ Set these in the server environment (with Docker, in `secrets/runtime.env`).
 | `LH_WEB_ORIGIN` | Yes | Exact public origin, e.g. `https://learn.example.com`. HTTPS, or plain HTTP for `localhost`, `127.0.0.1`, or `[::1]` only. No path (a bare trailing `/` is accepted), query, or user info. |
 | `LH_WEB_ACCESS_TOKEN` | Yes | 64 hex characters (`openssl rand -hex 32`). The Basic auth password for username `learnharness`. |
 | `LH_TAILSCALE_USERS` | No | Comma-separated Tailscale logins admitted by the `Tailscale-User-Login` header without a password. Only the published port is loopback: host processes and containers on the same network can still reach the container directly and forge `Tailscale-User-Login`, so set this only when nothing but Tailscale Serve can reach the container. |
-| `LH_CUSTOM_PROVIDERS` | No | JSON array of OpenAI-compatible providers. See [custom providers](docs/custom-providers.md). |
 | `LH_VAULT_DIR` | No | Folder of Markdown notes the library follows read-only. Unset turns the library follower off. |
 | `LH_VAULT_EXCLUDE` | No | Comma-separated skip patterns (`folder/`, `path/note.md`, `*` and `**` globs) that seed the Library skip list until one is saved. |
 | `LH_DATA_DIR` | No | Chats, graph, settings, prompts. `/data` in the image. |
-| `LH_AUTH_FILE` | No | Read-only flat JSON map of key variables, e.g. `{"OPENAI_API_KEY": "..."}`. `/secrets/auth.json` in the image. Environment values take precedence. |
-| Provider keys | No | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, and the others listed in `src/core/auth-keys.ts`. |
+| `LH_CONFIG_FILE` | No | Read-only operator config file: `keys`, `customProviders`, `claudeCode`. `/secrets/config/config.json` in the image. See [config file](deploy/README.md#config-file). |
+| Provider keys | No | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, and the others listed in `src/core/auth-keys.ts`. Environment or the config file's `keys`; the environment wins. |
 | Search and dictation keys | No | `TAVILY_API_KEY`, `BRAVE_API_KEY`, `EXA_API_KEY`, `FIRECRAWL_API_KEY`, `OLLAMA_API_KEY`, `DEEPGRAM_API_KEY`. |
 | `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR` | No | Authenticate the Claude Code CLI in the image. See [Claude Code](docs/claude-code.md). |
 | `CHROME_PATH` | No | Chrome executable for demo verification. Set in the image. |

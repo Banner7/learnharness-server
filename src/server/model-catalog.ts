@@ -29,7 +29,7 @@ function catalogModel(provider: string, id: string): Model<Api> | undefined {
 function catalogProviderIds(): string[] { return piModels().getProviders().map((p) => p.id); }
 import { settingsStore } from "../store/settings.ts";
 import { effectiveSettings } from "./stores.ts";
-import { keyValue } from "./keys.ts";
+import { keySnapshot } from "./keys.ts";
 import type { ChatSettings } from "../core/contracts/chat.ts";
 import type {
 	CatalogDefaults,
@@ -139,10 +139,11 @@ export function catalogSlots(): SlotPins {
  *  carries a secret; credentials are configured on the server only. */
 export function catalogProviders(): CatalogProvider[] {
 	piModels();
+	const key = keySnapshot(); // one mirror sync and one config read for every row
 	return AUTH_PROVIDER_KEYS.map((p): CatalogProvider => ({
 		id: p.id,
 		envVar: p.envVar,
-		keyPresent: keyValue(p.envVar) !== undefined,
+		keyPresent: key(p.envVar) !== undefined,
 	})).concat([
 		{ id: CLAUDE_CODE_PROVIDER, envVar: "", keyPresent: claudeCodeAvailable() },
 		...customProviderSummaries().map((p): CatalogProvider => ({ id: p.id, name: p.name, serverManaged: true, envVar: "", keyPresent: customProviderPresent(p.id) })),
@@ -152,12 +153,18 @@ export function catalogProviders(): CatalogProvider[] {
 /** The providers whose key is present — the picker federates exactly
  *  these (a keyless provider's models are unreachable by design; the
  *  Keys page is the discovery surface, same discipline as search). */
-function keyedProviderIds(): Set<string> {
-	return new Set(catalogProviders().filter((p) => p.keyPresent).map((p) => p.id));
+function keyedProviderIds(providers: readonly CatalogProvider[] = catalogProviders()): Set<string> {
+	return new Set(providers.filter((p) => p.keyPresent).map((p) => p.id));
 }
 
 /** Project one catalog model to the client DTO. */
 export function toModelDto(model: Model<Api>): ModelDto {
+	return modelDto(model, new Set(customProviderIds()));
+}
+
+/** toModelDto with the custom-provider ids read once by the caller (the
+ *  catalog projects every model of every keyed provider). */
+function modelDto(model: Model<Api>, custom: ReadonlySet<string>): ModelDto {
 	return {
 		id: model.id,
 		name: model.name,
@@ -165,7 +172,7 @@ export function toModelDto(model: Model<Api>): ModelDto {
 		reasoning: model.reasoning,
 		input: [...model.input],
 		supportedLevels: getSupportedThinkingLevels(model),
-		cost: model.provider === CLAUDE_CODE_PROVIDER || customProviderIds().includes(model.provider) ? null : {
+		cost: model.provider === CLAUDE_CODE_PROVIDER || custom.has(model.provider) ? null : {
 			input: model.cost.input,
 			output: model.cost.output,
 			cacheRead: model.cost.cacheRead,
@@ -201,19 +208,21 @@ export function catalogContextLimits(): Map<string, number> {
  *  defaults a settings-less chat runs + the background roles' resolved
  *  pins (the settings UI's per-role default captions). */
 export function modelCatalog(): ModelCatalogResponse {
-	const keyed = keyedProviderIds();
+	const providers = catalogProviders();
+	const keyed = keyedProviderIds(providers);
+	const custom = new Set(customProviderIds());
 	const models = piModels()
 		.getProviders()
 		.filter((p) => keyed.has(p.id))
 		.flatMap((p) => piModels().getModels(p.id))
-		.map(toModelDto)
+		.map((model) => modelDto(model, custom))
 		.sort((a, b) => (a.provider === b.provider ? a.id.localeCompare(b.id) : a.provider.localeCompare(b.provider)));
 	return {
 		models,
 		defaults: catalogDefaults(),
 		rolePins: catalogRolePins(),
 		slots: catalogSlots(),
-		providers: catalogProviders(),
+		providers,
 	};
 }
 

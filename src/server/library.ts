@@ -115,7 +115,7 @@ const OVERSIZE_ERROR = `Note is larger than ${MAX_VAULT_NOTE_BYTES / (1024 * 102
 async function readVaultNote(root: string, relative: string): Promise<Buffer> {
 	const full = path.join(root, relative);
 	let handle: fs.promises.FileHandle;
-	try { handle = await fs.promises.open(full, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW); }
+	try { handle = await fs.promises.open(full, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK); }
 	catch (err) {
 		if ((err as NodeJS.ErrnoException).code === "ELOOP") throw new Error("Vault note is a symlink; the library reads regular files only.");
 		throw err;
@@ -124,7 +124,10 @@ async function readVaultNote(root: string, relative: string): Promise<Buffer> {
 		const stat = await handle.stat();
 		if (!stat.isFile()) throw new Error("Vault note is not a regular file.");
 		if (stat.size > MAX_VAULT_NOTE_BYTES) throw new Error(OVERSIZE_ERROR);
-		const [realRoot, realFile] = await Promise.all([fs.promises.realpath(root), fs.promises.realpath(full)]);
+		// Resolve the opened descriptor, not the name again: a folder swapped
+		// for a symlink between open and this check cannot redirect the read.
+		const opened = process.platform === "linux" ? `/proc/self/fd/${handle.fd}` : full;
+		const [realRoot, realFile] = await Promise.all([fs.promises.realpath(root), fs.promises.realpath(opened)]);
 		const rel = path.relative(realRoot, realFile);
 		if (rel === "" || rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw new Error("Vault note resolves outside the vault folder.");
 		const bytes = await handle.readFile();
@@ -180,13 +183,14 @@ async function extractNote(root: string, source: NotesSource): Promise<void> {
  * failed notes; "auto" takes quiet notes that have not failed on their
  * current bytes (a failure would otherwise re-run, and bill, every poll).
  * A setup refusal stops the drain and is reported once via `blocked`. */
-export function drainLibrary(mode: "manual" | "auto"): Promise<void> {
+export function drainLibrary(mode: "manual" | "auto", { scanned = false }: { scanned?: boolean } = {}): Promise<void> {
 	const root = VAULT_DIR;
 	if (!root) return Promise.resolve();
 	if (mode === "manual") manualRequested = true;
 	draining ??= (async () => {
 		try {
-			await syncVault();
+			// The follower tick has just scanned: do not walk the vault twice.
+			if (!scanned) await syncVault();
 			const tried = new Set<string>();
 			for (;;) {
 				const now = Date.now();
@@ -226,7 +230,7 @@ export function startVaultFollower(): void {
 	const tick = async () => {
 		try {
 			await syncVault();
-			if (libraryPreferences().autoExtract) await drainLibrary("auto");
+			if (libraryPreferences().autoExtract) await drainLibrary("auto", { scanned: true });
 		} catch (err) {
 			console.error("[vault] follower tick failed:", err);
 		}

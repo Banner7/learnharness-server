@@ -857,14 +857,16 @@ export function Chat({
 			() => {
 				sentInitial.current = true;
 				const entry = readOpeningPromptEntry(chatId);
-				const prompt = initialPrompt || entry?.text; // Legacy links still work.
+				const prompt = initialPrompt || entry?.text; // Legacy ?prompt= links still prefill.
 				if (!initialPromptOwed(initialMessages, prompt)) {
 					if (initialMessages.some(m => m.role === "user" || m.role === "assistant")) clearOpeningPrompt(chatId);
 					return;
 				}
 				openingDraftRef.current = prompt!;
-				if (entry?.attempted || initiallyInFlight) {
-					applyText(prompt!); // Interrupted start: the learner explicitly resends.
+				// A URL prompt may come from a cross-site link: prefill, never send.
+				// Interrupted start: the learner explicitly resends.
+				if (initialPrompt || entry?.attempted || initiallyInFlight) {
+					applyText(prompt!);
 					return;
 				}
 				deliverOpeningPrompt(prompt!);

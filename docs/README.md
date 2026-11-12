@@ -6,7 +6,7 @@
 - [Getting started](getting-started.md) — signing in, models, sessions, dictation, server files, notes imports, and the vault library.
 - [Keyboard shortcuts](keyboard.md) — defaults, rebinding, and navigation.
 - [Claude Code](claude-code.md) — enable the pinned CLI on the server and troubleshoot it.
-- [Custom and local models](custom-providers.md) — declare OpenAI-compatible providers in `LH_CUSTOM_PROVIDERS`.
+- [Custom and local models](custom-providers.md) — declare OpenAI-compatible providers in the server config file.
 - [Themes](themes.md) — presets and the theme file format.
 - [Context, caching, and costs](compaction-accounting.md) — understand the session meters and advanced cache preferences.
 - [Learning-data skill](../skills/learnharness/SKILL.md) — a read-only guide and standalone readers for local learning records.

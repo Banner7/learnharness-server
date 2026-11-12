@@ -22,14 +22,20 @@ test("every path is gated and browser access fails closed", () => {
 			assert.match(unauthenticated.headers.get("www-authenticate") ?? "", /^Basic /);
 			assert.equal(unauthenticated.headers.get("cache-control"), "private, no-store");
 		}
-		for (const path of ["/chat/new", "/_next/static/chunks/app.js", "/api/nope"]) {
+		const expected: Record<string, string | null> = {
+			"/chat/new": "private, no-store",
+			"/api/nope": "private, no-store",
+			"/_next/static/chunks/app.js": null,
+			"/fonts/cmunrm.woff": "private, max-age=31536000, immutable",
+		};
+		for (const path of Object.keys(expected)) {
 			const authorized = request(path, {
 				host: "127.0.0.1:12345",
 				authorization: `Basic ${Buffer.from(`learnharness:${secret}`).toString("base64")}`,
 			});
 			assert.notEqual(authorized.status, 401, path);
 			assert.notEqual(authorized.status, 403, path);
-			assert.equal(authorized.headers.get("cache-control"), "private, no-store", path);
+			assert.equal(authorized.headers.get("cache-control"), expected[path], path);
 		}
 	} finally {
 		names.forEach((name, index) => {

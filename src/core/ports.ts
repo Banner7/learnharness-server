@@ -31,6 +31,7 @@ import type {
 	TurnUsage,
 	NotesSource,
 } from "./contracts.ts";
+import type { LoadedServerConfig } from "./server-config.ts";
 import type { UserSettings } from "./settings.ts";
 import type { Theme, ThemeFile } from "./themes.ts";
 
@@ -131,6 +132,9 @@ export interface GraphStore {
 	/** Upsert one imported-notes source record (config.SOURCES_FILE — a
 	 *  JSON map, not a ledger; an upsert keeps the existing usage log). */
 	upsertSource(source: NotesSource): void;
+	/** upsertSource for many records: one read, the same merge rule per
+	 *  record, one write. */
+	upsertSources(sources: readonly NotesSource[]): void;
 	/** Every notes source record, by id order-insensitive. */
 	readSources(): NotesSource[];
 	/** Remove imported-source bookkeeping only; the service removes graph traces first. */
@@ -193,6 +197,8 @@ export interface JobStore {
 	updateJob(id: string, patch: JobPatch): JobRecord | null;
 	/** All jobs for a chat, newest activity first. */
 	listJobs(chatId: string): JobRecord[];
+	/** Every job across chats, newest activity first, in one directory pass. */
+	listAllJobs(): JobRecord[];
 	/** The job fulfilling a given tool part, if any (spawn-hook dedup). */
 	findJobByToolCallId(chatId: string, toolCallId: string): JobRecord | null;
 	/** Delete every job record for a chat — running or finished (session-
@@ -263,16 +269,17 @@ export interface PromptOverrideStore {
 	deleteOverride(segmentPath: string): void;
 }
 
-// ─── AuthStore — BYOK provider keys (auth-keys wave, 2026-09-19) ────────────
+// ─── ConfigStore — the operator config file (config wave, v0.2.0) ───────────
 
 /**
- * The flat {VAR: value} auth.json map (config.AUTH_FILE), managed on the
- * server host only: the app reads it and never writes it. Values are opaque
- * strings; env precedence is a server-band concern (src/server/keys.ts).
+ * The read-only operator config file (config.CONFIG_FILE; schema in
+ * core/server-config.ts), managed on the server host only: the app reads it
+ * and never writes it. Env precedence is a server-band concern
+ * (src/server/keys.ts).
  */
-export interface AuthStore {
-	/** The whole map — absent or corrupt file = {} ("no keys yet", the
-	 *  documented first-boot state). Never throws. */
-	authVars(): Record<string, string>;
+export interface ConfigStore {
+	/** The parsed file — missing = empty config; invalid = empty config plus
+	 *  `error`. Never throws. */
+	read(): LoadedServerConfig;
 }
 

@@ -628,8 +628,9 @@ function continueLiveProcess(turn: ClaudeTurn, owner: symbol, sessionId: string 
 }
 
 function toClaudeEnv(): NodeJS.ProcessEnv {
-	// Preserve native CLI auth/routing, including launch-environment credentials.
-	// Claude Code chooses the account and billing method, not LearnHarness.
+	// The CLI gets an allowlisted launch environment (externalCliEnv): its own
+	// auth/routing variables, never other providers' keys or file-mirrored
+	// keys. Claude Code chooses the account and billing method, not LearnHarness.
 	// Loading user settings also loads ~/.claude/CLAUDE.md and memory files;
 	// the tutor's system prompt must not inherit them.
 	return {
