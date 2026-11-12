@@ -118,7 +118,7 @@ Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 | Credentials | Keys entered in Settings; ChatGPT, GitHub Copilot and Grok sign-in | Server environment or the read-only config file only; no in-app key entry and no subscription sign-in |
 | Custom endpoints | One OpenAI-compatible endpoint configured in the app | Any number, declared in the config file |
 | Notes library | Notes imported by upload | Can also follow a read-only Markdown folder |
-| Layout | Desktop window | Phone-first; side conversations become a bottom sheet and the Drawing Pad accepts touch ink |
+| Layout | Desktop window | Phone-first; side conversations become a bottom sheet, the Drawing Pad accepts touch ink, and on narrow screens node search lives in Chains |
 | Look | Default theme | Kasumi by default, plus an Automatic theme that follows the system light/dark setting; the old default is kept as "Classic Dark" |
 | Claude Code | Enabled in Settings | Enabled in the config file; the CLI is pinned in the image |
 | Local files | Picker and drag-and-drop attach local paths | Files on your device cannot be attached; paste a path on the server instead |
