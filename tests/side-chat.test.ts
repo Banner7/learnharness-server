@@ -154,6 +154,13 @@ describe("side lesson document", () => {
 		assert.doesNotMatch(doc, /correctAnswer|"dq"/);
 	});
 
+	it("does not infer letters from a call that only appears after the answer", () => {
+		const answer = result("call_0", "quiz", answeredQuiz());
+		const doc = sideChatLessonDocument([answer, assistant([call("call_0", "quiz", QUIZ_ARGS)])]);
+		assert.match(doc, /^- 3 \*\(chosen by the learner\)\*$/m);
+		assert.doesNotMatch(doc, /^- A\. 3/m);
+	});
+
 	it("hides the ACTIVE problem's solution, reveals concluded ones", () => {
 		const active = sideChatLessonDocument([
 			assistant([text("Try this."), call("p1", "problem", { statement: "Integrate x dx.", modelSolution: "SECRET-SOLUTION x^2/2" })]),

@@ -9,7 +9,7 @@ The Docker image includes a pinned Claude Code CLI (`/usr/local/bin/claude`) run
 1. Create a token with `claude setup-token` on any machine where you can sign in, and set it as `CLAUDE_CODE_OAUTH_TOKEN` in the server environment or in the config file's `keys`.
 2. Keep `CLAUDE_CONFIG_DIR` (default `/claude` in the image) on a volume writable by uid 1000. `DISABLE_AUTOUPDATER=1` keeps the pinned CLI from updating itself.
 3. Add `"claudeCode": {"enabled": true}` to the config file (`LH_CONFIG_FILE`, `/secrets/config/config.json` in the image; see [deployment](../deploy/README.md#config-file)). The file is re-read when it changes and the switch is checked on every new admission, so no restart is needed. Remove it or set `false` to turn the provider off.
-4. Select a Claude Code model: `opus`, `sonnet`, or `haiku`. These are CLI aliases, not pinned underlying versions.
+4. Select a Claude Code model: `opus`, `sonnet`, `haiku`, or `fable`. These are CLI aliases, not pinned underlying versions.
 
 Outside the image, install and authenticate the CLI under the server's OS user and make `claude` discoverable in that user's `PATH`. **Settings → Providers** shows installation status read-only.
 

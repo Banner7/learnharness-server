@@ -6,7 +6,7 @@ import { Type } from "typebox";
 import { piEngineFor, type PiEngine, type ThinkingLevel } from "../models.ts";
 import { providerEventObserver, type ProviderEventObserver } from "../provider-events.ts";
 import { backgroundCaptureStream, createBackgroundCapture, type BackgroundCapture } from "../background-capture.ts";
-import { workerRequestStream } from "../worker-request-admission.ts";
+import { createWorkerRequestScope } from "../worker-request-admission.ts";
 import type { VisualResult } from "../../core/contracts.ts";
 import type { LearnerImage } from "../tools/learner-image.ts";
 import { embedLearnerImage, LEARNER_IMAGE_HREF } from "../../core/learner-image-svg.ts";
@@ -55,7 +55,7 @@ export interface VisualMakerOptions {
 	/** Test seam: scripted engine; production uses the visualMaker role. */
 	engine?: PiEngine;
 	headless?: HeadlessApi;
-	/** Max model rounds (write/render cycles + final answer). Default 8. */
+	/** Optional assistant-turn cap; omitted = no turn-count limit. */
 	maxIterations?: number;
 	/** Live activity-line callback (updates the job record). */
 	onActivity?: (line: string) => void;
@@ -164,7 +164,7 @@ const UNLOOKED_FINISH_MESSAGE =
 export async function runVisualMaker(input: VisualMakerInput, opts: VisualMakerOptions = {}): Promise<VisualResult> {
 	const headless = opts.headless ?? getHeadless();
 	const brief = input.brief.trim() || "(no brief)";
-	const maxIterations = opts.maxIterations ?? 8;
+	const maxIterations = opts.maxIterations;
 
 	const reason = headless.unavailableReason();
 	if (reason) {
@@ -179,7 +179,6 @@ export async function runVisualMaker(input: VisualMakerInput, opts: VisualMakerO
 	const reasoning = engine.level;
 	const sessionId = randomUUID();
 	const capture = createBackgroundCapture({ role: "visualMaker", runId: sessionId, sourceId: opts.chatId });
-	const streamEngine = { ...engine, streamFn: backgroundCaptureStream(workerRequestStream(engine.streamFn), capture) };
 	const learnerImage = input.image;
 	const systemPrompt = learnerImage ? `${INSTRUCTIONS}\n\n${IMAGE_INSTRUCTIONS}` : INSTRUCTIONS;
 	const prompt = [
@@ -227,9 +226,11 @@ export async function runVisualMaker(input: VisualMakerInput, opts: VisualMakerO
 	let renderedSvg: string | null = null;
 	let finalText = "";
 	let captureError: unknown;
+	const requests = createWorkerRequestScope(engine.streamFn, opts.abortSignal);
+	const streamEngine = { ...engine, streamFn: backgroundCaptureStream(requests.streamFn, capture) };
 
 	try {
-		for (let iteration = 0; iteration < maxIterations; iteration++) {
+		for (let iteration = 0; maxIterations === undefined || iteration < maxIterations; iteration++) {
 			// One model call per iteration (streamSimple, no agent loop — this
 			// loop owns tool execution and the image-in-the-loop injection).
 			const result = await streamOnce(
@@ -384,6 +385,7 @@ export async function runVisualMaker(input: VisualMakerInput, opts: VisualMakerO
 		const msg = err instanceof Error ? err.message : String(err);
 		return { svg: "", notes: `FAILED: the maker crashed — ${msg}` };
 	} finally {
+		requests.close();
 		capture?.finish(captureError);
 	}
 

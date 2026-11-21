@@ -144,7 +144,13 @@ export function piEngineForSpec(spec: ResolvedModelSpec, cacheRetention?: () => 
 			// Read the slot preference for every operation, not just engine creation.
 			// Unset adds NOTHING: native defaults/env and explicit caller options survive.
 			const retention = cacheRetention?.();
-			return dispatch(requestModel, context, {
+			// Direct Anthropic auth is resolved per request. Keep full replay: Pi's
+			// message-thread fingerprint does not include that rotating credential.
+			// (upstream 0.7.0, 9cf2a2f0)
+			const wireModel = requestModel.provider === "anthropic" && requestModel.api === "anthropic-messages"
+				? { ...requestModel, compat: { ...requestModel.compat, supportsMessageThreads: false } }
+				: requestModel;
+			return dispatch(wireModel, context, {
 				...options,
 				...(retention !== undefined ? { cacheRetention: retention } : {}),
 				reasoning: level === "off" ? undefined : level,
